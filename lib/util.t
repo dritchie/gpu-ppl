@@ -55,4 +55,36 @@ U.ptrSafeCopy = macro(function(self, other)
 end)
 
 
+-- Exposing the underlying C implementation of terralib.currenttimeinseconds to
+--    Terra code so we don't have to re-enter the Lua interpreter to do timing.
+U.currenttimeinseconds = (terralib.includecstring [[
+#ifdef _WIN32
+#include <io.h>
+#include <time.h>
+#include <Windows.h>
+#undef interface
+#else
+#include <unistd.h>
+#include <sys/time.h>
+#endif
+double CurrentTimeInSeconds() {
+#ifdef _WIN32
+    static uint64_t freq = 0;
+    if(freq == 0) {
+        LARGE_INTEGER i;
+        QueryPerformanceFrequency(&i);
+        freq = i.QuadPart;
+    }
+    LARGE_INTEGER t;
+    QueryPerformanceCounter(&t);
+    return t.QuadPart / (double) freq;
+#else
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return tv.tv_sec + tv.tv_usec / 1000000.0;
+#endif
+}
+]]).CurrentTimeInSeconds
+
+
 return U
