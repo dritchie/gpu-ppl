@@ -1,6 +1,8 @@
-local S = require("lib.std")
-local maths = require("lib.maths")
-local R = require("lib.rand")
+return require("platform.module")(function(platform)
+
+local S = require("lib.std")(platform)
+local maths = require("lib.maths")(platform)
+local R = require("lib.rand")(platform)
 
 
 local D = {}
@@ -340,5 +342,4 @@ end)
 
 return D
 
-
-
+end)

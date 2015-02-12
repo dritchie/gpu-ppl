@@ -1,4 +1,6 @@
-local trace = require("prob.trace")
+return require("platform.module")(function(platform)
+
+local trace = require("prob.trace")(platform)
 
 
 -- Probabilistic language primitives
@@ -62,3 +64,5 @@ return
 	factor = factor,
 	condition = condition
 }
+
+end)

@@ -1,6 +1,8 @@
-local S = require("lib.std")
-local G = require("globals")
-local util = require("lib.utils")
+return require("platform.module")(function(platform)
+
+local S = require("lib.std")(platform)
+local G = require("globals")(platform)
+local util = require("lib.utils")(platform)
 
 -------------------------------------------------------------------------------
 
@@ -341,4 +343,5 @@ return
 	lookup = lookup
 }
 
+end)
 

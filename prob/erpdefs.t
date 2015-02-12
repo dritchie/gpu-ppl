@@ -1,5 +1,7 @@
-local erp = require("prob.erp")
-local distrib = require("prob.distrib")
+return require("platform.module")(function(platform)
+
+local erp = require("prob.erp")(platform)
+local distrib = require("prob.distrib")(platform)
 
 
 local ERPs = {}
@@ -74,3 +76,5 @@ ERPs.dirichlet = erp.makeERP(
 -------------------------------------------------------------------------------
 
 return ERPs
+
+end)

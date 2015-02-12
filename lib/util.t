@@ -1,4 +1,6 @@
-local S = require("lib.std")
+return require("platform.module")(function(platform)
+
+local S = require("lib.std")(platform)
 
 local U = {}
 
@@ -88,3 +90,5 @@ double CurrentTimeInSeconds() {
 
 
 return U
+
+end)

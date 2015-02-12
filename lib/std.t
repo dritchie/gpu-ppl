@@ -1,11 +1,11 @@
-local G = require("globals")
+return require("platform.module")(function(platform)
 
 local S = {}
 
 S.memoize = terralib.memoize
 
 -- Add platform-specific standard library functions: printf, malloc, free, etc.
-for k,v in pairs(G.platform().std) do S[k] = v end
+for k,v in pairs(platform.std) do S[k] = v end
 
 -------------------------------------------------------------------------------
 
@@ -358,3 +358,5 @@ S.Vector = S.memoize(S.Vector)
 -------------------------------------------------------------------------------
 
 return S
+
+end)

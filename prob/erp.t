@@ -1,7 +1,9 @@
-local S = require("lib.std")
-local util = require("lib.util")
-local trace = require("prob.trace")
-local langprims = require("prob.langprims")
+return require("platform.module")(function(platform)
+
+local S = require("lib.std")(platform)
+local util = require("lib.util")(platform)
+local trace = require("prob.trace")(platform)
+local langprims = require("prob.langprims")(platform)
 
 
 -- An ERP is built from a sample function, a logprob function, and
@@ -151,5 +153,5 @@ return
 	makeERP = makeERP
 }
 
-
+end)
 

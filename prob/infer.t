@@ -1,8 +1,10 @@
-local S = require("lib.std")
-local util = require("lib.util")
-local rand = require("lib.rand")
-local maths = require("lib.maths")
-local trace = require("prob.trace")
+return require("platform.module")(function(platform)
+
+local S = require("lib.std")(platform)
+local util = require("lib.util")(platform)
+local rand = require("lib.rand")(platform)
+local maths = require("lib.maths")(platform)
+local trace = require("prob.trace")(platform)
 
 -------------------------------------------------------------------------------
 
@@ -104,5 +106,5 @@ return
 	mh = mh
 }
 
-
+end)
 
