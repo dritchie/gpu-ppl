@@ -14,8 +14,8 @@ end
 
 processModules(
 	"prob.langprims",
-	"prob.erpdefs"
-	-- TODO: Add inference module
+	"prob.erpdefs",
+	"prob.infer"
 )
 
 return prob

@@ -1,6 +1,7 @@
  local C = terralib.includecstring [[
     #include <stdio.h>
     #include <stdlib.h>
+    inline void flushstdout() { fflush(stdout); }
 ]]
 
 return 
@@ -11,7 +12,8 @@ return
 		free = C.free,
 		realloc = C.realloc,
 		abort = C.abort,
-		printf = C.printf
+		printf = C.printf,
+		flushstdout = C.flushstdout
 	},
 
 	rand = 

@@ -36,6 +36,10 @@ local SingleTypeTrace = S.memoize(function(ERPType)
 		return choicerecs:size()
 	end
 
+	local terra SingleTypeListTrace:getChoice(i: uint)
+		return choicerecs:get(i)
+	end
+
 	terra SingleTypeListTrace:clear()
 		self.choicerecs:clear()
 	end
@@ -93,7 +97,7 @@ local compilingProgram = nil
 -- A trace of all ERPs of all types that could be potentially used by a program
 local ERPTypes = {}
 local function registerERPType(ERPType) table.insert(ERPTypes, ERPType) end
-local TraceConstructor = S.memoize(function(program)
+local TraceTypeConstructor = S.memoize(function(program)
 
 	-- We assume that we can freely get the program's return type
 	local succ, typ = program:peektype()
@@ -149,7 +153,7 @@ local TraceConstructor = S.memoize(function(program)
 
 	-- Retrieve a reference to the trace for the currently-executing
 	--    computation (Platform specific)
-	local currTrace = G.platform.getCurrTraceFn(Trace)
+	local currTrace = G.platform().getCurrTraceFn(Trace)
 	Trace.currTrace = currTrace
 
 	terra Trace:__init(doRejectInit: bool) : {}
@@ -178,6 +182,13 @@ local TraceConstructor = S.memoize(function(program)
 
 	terra Trace:__init() : {}
 		self:__init(false)
+	end
+
+	terra Trace:numChoices()
+		var n = 0
+		[forAllSubtraces(self, function(trace)
+			return quote n = n + trace:numChoices() end
+		end)]
 	end
 
 	terra Trace:run()
@@ -249,10 +260,24 @@ local TraceConstructor = S.memoize(function(program)
 		end
 	end
 
+	-- Propose a change to random choice i
+	-- Returns the forward and reverse probabilities of the proposal
+	terra Trace:proposeChangeToChoice(i: uint)
+		[forAllSubtraces(self, function(trace)
+			emit quote
+				var n = trace:numChoices()
+				if i < n then
+					return trace:getChoice(i):proposal()
+				end
+				i = i - n
+			end
+		end)]
+	end
+
 end)
 
 local Trace = function(program)
-	local T = TraceConstructor(program)
+	local T = TraceTypeConstructor(program)
 	compilingProgram = program
 	program:compile(function() compilingProgram = nil end)
 	return T
@@ -309,6 +334,7 @@ end
 
 return
 {
+	Trace = Trace,
 	registerERPType = registerERPType,
 	currTrace = currTrace,
 	isRecordingTrace = isRecordingTrace,
