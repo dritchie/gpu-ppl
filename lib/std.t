@@ -5,7 +5,7 @@ local S = {}
 S.memoize = terralib.memoize
 
 -- Add platform-specific standard library functions: printf, malloc, free, etc.
-for k,v in pairs(G.platform.std) do S[k] = v end
+for k,v in pairs(G.platform().std) do S[k] = v end
 
 -------------------------------------------------------------------------------
 

@@ -1,2 +1,2 @@
 local G = require("globals")
-return G.platform.rand
+return G.platform().rand
