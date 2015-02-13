@@ -61,6 +61,13 @@ ERPs.binomial = erp.makeERP(
 
 -------------------------------------------------------------------------------
 
+ERPs.poisson = erp.makeERP(
+	distrib.poisson(double).sample,
+	distrib.poisson(double).logprob
+)
+
+-------------------------------------------------------------------------------
+
 ERPs.categorical = erp.makeERP(
 	distrib.categorical(double).sample,
 	distrib.categorical(double).logprob

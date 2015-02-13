@@ -131,6 +131,7 @@ local function makeERP(sample, logprob, propose)
 		var newval, fwdlp, rvslp = propose([arglist(self)])
 		S.rundestructor(self.value)
 		self.value = newval
+		self:rescore()
 		return fwdlp, rvslp
 	end
 

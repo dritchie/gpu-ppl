@@ -5,10 +5,10 @@ local trace = require("prob.trace")(platform)
 
 -- Probabilistic language primitives
 
+local id = 0
 
 -- Wrap a function so that all calls do proper address tracking
 -- TODO: Handle struct methods specially, as in Quicksand?
-local id = 0
 local function fn(funcOrMacro)
 	local data = {def = nil}
 	local wrappedfn = macro(function(...)
@@ -43,6 +43,7 @@ local function fn(funcOrMacro)
 	return wrappedfn
 end
 
+
 -- Modulate the probability of the computation
 local factor = macro(function(num)
 	return quote
@@ -51,6 +52,7 @@ local factor = macro(function(num)
 		end
 	end
 end)
+
 
 -- Enforce a hard constraint
 local condition = macro(function(pred)
