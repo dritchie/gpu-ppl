@@ -16,7 +16,7 @@ local Sample = S.memoize(function(program)
 	if not succ then
 		error("Program return type not specified")
 	end
-	local ReturnType = type.returntype
+	local ReturnType = typ.returntype
 
 	-- Get the trace type for the program
 	local TraceType = trace.Trace(program)
@@ -29,7 +29,7 @@ local Sample = S.memoize(function(program)
 		logposterior: double
 	}
 
-	terra Sample:__init(tr: &Trace)
+	terra Sample:__init(tr: &TraceType)
 		S.copy(self.value, tr.returnVal)
 		self.logprior = tr.logprior
 		self.loglikelihood = tr.loglikelihood
@@ -50,7 +50,7 @@ local mh = S.memoize(function(program)
 	-- Lightweight MH transition kernel
 	-- Modifies currTrace in place
 	-- Returns true if accepted proposal, false if rejected
-	local terra mhKernel(currTrace: &Trace)
+	local terra mhKernel(currTrace: &TraceType)
 		var nextTrace = TraceType.salloc():copy(currTrace)
 		var nold = nextTrace:numChoices()
 		var whichi = uint(nold * rand.random())

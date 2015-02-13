@@ -41,7 +41,7 @@ local function makeERP(sample, logprob, propose)
 		propose = terra(currval: ArgValueType, [params])
 			var newval = sample([params])
 			var fwdlp = logprob([(&ValueType == ArgValueType) and
-								 (`&newval) or (`newval)])
+								 (`&newval) or (`newval)], [params])
 			var rvslp = logprob(currval, [params])
 			return newval, fwdlp, rvslp
 		end
@@ -54,7 +54,7 @@ local function makeERP(sample, logprob, propose)
 		logprob: double,
 		active: bool
 	}
-	local function paramField(i) = return string.format("param%d", i) end
+	local function paramField(i) return string.format("param%d", i) end
 	for i,spt in ipairs(StoredParamTypes) do
 		ERPType.entries:insert({field=paramField(i), type=spt})
 	end
@@ -62,7 +62,7 @@ local function makeERP(sample, logprob, propose)
 	ERPType.ParamTypes = ParamTypes
 	ERPType.methods.sample = sample
 	ERPType.methods.logprob = logprob
-	ERPType.method.propose = propose
+	ERPType.methods.propose = propose
 
 	ERPType.methods.getValue = macro(function(self)
 		return `self.value
@@ -94,12 +94,12 @@ local function makeERP(sample, logprob, propose)
 					if not util.equal(self.[paramField(i)], p) then
 						needsRescore = true
 						S.rundestructor(self.[paramField(i)])
-						ptrSafeCopy(self.[paramField(i)], [paramSyms[i]])
+						util.ptrSafeCopy(self.[paramField(i)], [params[i]])
 					end
 				end
 			end
 		end
-		if needsRescore then rescore() end
+		if needsRescore then self:rescore() end
 		self.active = true
 	end
 

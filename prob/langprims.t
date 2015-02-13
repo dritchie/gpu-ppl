@@ -44,18 +44,22 @@ local function fn(funcOrMacro)
 end
 
 -- Modulate the probability of the computation
-local terra factor(num: double)
-	if [trace.isRecordingTrace()] then
-		[trace.currTrace()]:addFactor(num)
+local factor = macro(function(num)
+	return quote
+		if [trace.isRecordingTrace()] then
+			[trace.currTrace()]:addFactor(num)
+		end
 	end
-end
+end)
 
 -- Enforce a hard constraint
-local terra condition(pred: bool)
-	if [trace.isRecordingTrace()] then
-		[trace.currTrace()]:enforceConstraint(pred)
+local condition = macro(function(pred)
+	return quote
+		if [trace.isRecordingTrace()] then
+			[trace.currTrace()]:enforceConstraint(pred)
+		end
 	end
-end
+end)
 
 
 return 

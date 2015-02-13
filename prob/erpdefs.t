@@ -32,8 +32,8 @@ ERPs.gaussian = erp.makeERP(
 	-- Drift proposal
 	terra(currval: double, mu: double, sigma: double)
 		var newval = [distrib.gaussian(double)].sample(currval, sigma)
-		var fwdlp = [distrib.gaussian(double)].sample(newval, currval, sigma)
-		var rvslp = [distrib.gaussian(double)].sample(currval, newval, sigma)
+		var fwdlp = [distrib.gaussian(double)].logprob(newval, currval, sigma)
+		var rvslp = [distrib.gaussian(double)].logprob(currval, newval, sigma)
 		return newval, fwdlp, rvslp
 	end
 )

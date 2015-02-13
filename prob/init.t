@@ -13,11 +13,11 @@ local function processModules(modnames)
 	end
 end
 
-processModules(
+processModules({
 	"prob.langprims",
 	"prob.erpdefs",
 	"prob.infer"
-)
+})
 
 return prob
 

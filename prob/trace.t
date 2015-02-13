@@ -1,8 +1,7 @@
 return require("platform.module")(function(platform)
 
 local S = require("lib.std")(platform)
-local G = require("globals")(platform)
-local util = require("lib.utils")(platform)
+local util = require("lib.util")(platform)
 
 -------------------------------------------------------------------------------
 
@@ -34,12 +33,12 @@ local SingleTypeTrace = S.memoize(function(ERPType)
 		choicerecs : S.Vector(AddrChoicePair)
 	}
 
-	local terra SingleTypeListTrace:numChoices()
-		return choicerecs:size()
+	terra SingleTypeListTrace:numChoices()
+		return self.choicerecs:size()
 	end
 
-	local terra SingleTypeListTrace:getChoice(i: uint)
-		return choicerecs:get(i)
+	terra SingleTypeListTrace:getChoice(i: uint)
+		return &self.choicerecs(i).choice
 	end
 
 	terra SingleTypeListTrace:clear()
@@ -76,14 +75,14 @@ local SingleTypeTrace = S.memoize(function(ERPType)
 	terra SingleTypeListTrace:lookup(addr: &Address, [params])
 		-- Search for choice with same address
 		for i=0,self.choicerecs:size() do
-			if self.choicerecs(i).addr == addr then
+			if self.choicerecs(i).addr == @addr then
 				return &self.choicerecs(i).choice, true
 			end
 		end
 		-- No choice record found; create a new one
 		var newrec = self.choicerecs:insert()
 		newrec:init(addr, [params])
-		return newrec, false
+		return &newrec.choice, false
 	end
 
 	return SingleTypeListTrace
@@ -106,7 +105,7 @@ local TraceTypeConstructor = S.memoize(function(program)
 	if not succ then
 		error("Program return type not specified")
 	end
-	local ReturnType = type.returntype
+	local ReturnType = typ.returntype
 
 	local struct Trace(S.Object)
 	{
@@ -136,7 +135,7 @@ local TraceTypeConstructor = S.memoize(function(program)
 	for _,erpt in ipairs(ERPTypes) do
 		Trace.entries:insert({
 			field = erptype2membername(erpt),
-			type = SingleTypeTrace(ERPType)
+			type = SingleTypeTrace(erpt)
 		})
 	end
 
@@ -145,9 +144,7 @@ local TraceTypeConstructor = S.memoize(function(program)
 		return quote
 			escape
 				for _,erpt in ipairs(ERPTypes) do
-					local name = erptype2membername(erpt)
-					local member = `self.[name]
-					emit quote [fn(member)] end
+					emit(fn(`self.[erptype2membername(erpt)]))
 				end
 			end
 		end
@@ -155,7 +152,7 @@ local TraceTypeConstructor = S.memoize(function(program)
 
 	-- Retrieve a reference to the trace for the currently-executing
 	--    computation (Platform specific)
-	local currTrace = G.platform().getCurrTraceFn(Trace)
+	local currTrace = platform.getCurrTraceFn(Trace)
 	Trace.currTrace = currTrace
 
 	terra Trace:__init(doRejectInit: bool) : {}
@@ -191,6 +188,7 @@ local TraceTypeConstructor = S.memoize(function(program)
 		[forAllSubtraces(self, function(trace)
 			return quote n = n + trace:numChoices() end
 		end)]
+		return n
 	end
 
 	terra Trace:run()
@@ -251,7 +249,7 @@ local TraceTypeConstructor = S.memoize(function(program)
 	function Trace.lookup(ERPType)
 		local params = ERPType.ParamTypes:map(function(t) return symbol(t) end)
 		return terra(self: &Trace, [params])
-			var choicerec, found = self.[erptype2membername(ERPType)]:lookup([params])
+			var choicerec, found = self.[erptype2membername(ERPType)]:lookup(&self.address, [params])
 			if found then
 				choicerec:checkForChanges([params])
 			else
@@ -266,7 +264,7 @@ local TraceTypeConstructor = S.memoize(function(program)
 	-- Returns the forward and reverse probabilities of the proposal
 	terra Trace:proposeChangeToChoice(i: uint)
 		[forAllSubtraces(self, function(trace)
-			emit quote
+			return quote
 				var n = trace:numChoices()
 				if i < n then
 					return trace:getChoice(i):proposal()
@@ -275,6 +273,8 @@ local TraceTypeConstructor = S.memoize(function(program)
 			end
 		end)]
 	end
+
+	return Trace
 
 end)
 
@@ -306,12 +306,13 @@ local function lookup(ERPType)
 	--    behavior.
 	return macro(function(...)
 		local params = {...}
+		local TraceType = Trace(compilingProgram)
 		return quote
 			var val : ERPType.ValueType
 			-- If we are tracing program execution, then attempt to look up the
 			--    value in the trace
-			if [isRecordingTrace()]
-				var choicerec = [currTrace()]:lookup([params])
+			if [isRecordingTrace()] then
+				var choicerec = [TraceType.lookup(ERPType)]([currTrace()], [params])
 				var tmpval = choicerec:getValue()
 				S.copy(val, tmpval)
 			-- Otherwise, just sample a value directly
