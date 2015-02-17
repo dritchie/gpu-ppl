@@ -34,16 +34,6 @@ S.rundestructor = macro(function(self)
     return quote end
 end)
 
-S.assert = macro(function(check)
-    local loc = check.tree.filename..":"..check.tree.linenumber
-    return quote 
-        if not check then
-            S.printf("%s: assertion failed!\n",loc)
-            S.abort()
-        end
-    end
-end) 
-
 local generatedtor = macro(function(self)
     local T = self:gettype()
     local stmts = terralib.newlist()
@@ -247,7 +237,23 @@ function S.Vector(T,debug)
             while self._capacity < cap do
                 self._capacity = self._capacity * 2
             end
-            self._data = [&T](S.realloc(self._data,sizeof(T)*self._capacity))
+            escape
+                -- Use realloc if platform provides it
+                if S.realloc then
+                    emit quote
+                        self._data = [&T](S.realloc(self._data,sizeof(T)*self._capacity))
+                    end
+                else
+                    emit quote
+                        var newdata = [&T](S.malloc(sizeof(T)*self._capacity))
+                        if self._data ~= nil then
+                            S.memcpy(newdata, self._data, sizeof(T)*self._size)
+                            S.free(self._data)
+                        end
+                        self._data = newdata
+                    end
+                end
+            end
         end
     end
     terra Vector:resize(size: uint64)
