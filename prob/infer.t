@@ -78,9 +78,15 @@ local mh = S.memoize(function(program)
 		var currTrace = TraceType.salloc():init(true)
 		var nAccepted = 0
 		for i=0,iters do
-			if verbose then
-				S.printf(" Iteration %u/%u                     \r", i+1, iters)
-				S.flushstdout()
+			-- Spit out progress output if the platform supports arbitrary
+			--    stdout flushing.
+			escape
+				if S.flushstdout then emit quote
+					if verbose then
+						S.printf(" Iteration %u/%u                     \r", i+1, iters)
+						S.flushstdout()
+					end
+				end end
 			end
 			if mhKernel(currTrace) then nAccepted = nAccepted + 1 end
 			if i >= burnin and i % lag == 0 then

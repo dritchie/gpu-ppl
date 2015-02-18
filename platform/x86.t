@@ -41,7 +41,7 @@ return
 		    end
 		end),
 		printf = C.printf,
-		flushstdout = C.flushstdout 	-- TODO: get rid of this somehow...
+		flushstdout = C.flushstdout
 	},
 
 	rand = 
