@@ -1,0 +1,6 @@
+curand_wrapper_terra.bc
+Makefile.inc
+*.dylib
+*.ll
+*.ptx
+*.bc

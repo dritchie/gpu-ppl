@@ -5,6 +5,24 @@
     inline void flushstdout() { fflush(stdout); }
 ]]
 
+-- Interface to external C++ random number generator
+if os.execute("cd lib/stdrand; make") ~= 0 then
+	error("Failed to compile stdrand wrapper.")
+end
+terralib.linklibrary("lib/stdrand/wrapper_terra.bc")
+local struct RandomState
+{
+	pad: uint8[ terralib.externfunction("rand_state_size", {}->{uint64})() ]
+}
+
+-- Global variables metatable
+local globalmt = 
+{
+	get = function(self) return self.global end,
+	getimpl = function(self) return self.global end
+}
+globalmt.__index = globalmt
+
 return 
 {
 	std = 
@@ -28,14 +46,16 @@ return
 
 	rand = 
 	{
-		random = terra() return C.rand() / (C.RAND_MAX + 1.0) end,
-		srand = C.srand,
+		State = RandomState,
+		init = terralib.externfunction("rand_init", {uint32, &RandomState} -> {}),
+		uniform = terralib.externfunction("rand_uniform", {&RandomState} -> {double})
 	},
 
 	maths = terralib.includec("math.h"),
 
-	getCurrTraceFn = function(TraceType)
-		local gtrace = global(&TraceType, 0)
-		return function() return `gtrace end
-	end
+	global = function(Type)
+		local obj = { global = global(Type) }
+		setmetatable(obj, globalmt)
+		return obj
+	end,
 }

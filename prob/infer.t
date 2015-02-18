@@ -71,7 +71,8 @@ local mh = S.memoize(function(program)
 
 	-- MCMC main loop function
 	return terra(outsamps: &S.Vector(Sample(program)),
-				 numsamps: uint, burnin: uint, lag: uint, verbose: bool)
+				 numsamps: uint, burnin: uint, lag: uint, seed: uint, verbose: bool)
+		rand.init(seed, &[rand.globalState:get()])
 		var iters = burnin + (numsamps * lag)
 		var t0 = util.currenttimeinseconds()
 		var currTrace = TraceType.salloc():init(true)

@@ -7,9 +7,11 @@ local maths = require("lib.maths")()
 
 ------------------------------------------------------------------------------
 
+local randomseed = 42
+
 local function expectationTest(name, prog, trueExp)
 
-	local numsamps = 150
+	local numsamps = 200
 	local lag = 20
 	local runs = 5
 	local errtol = 0.07
@@ -20,7 +22,7 @@ local function expectationTest(name, prog, trueExp)
 		var est = 0.0
 		var err = 0.0
 		for i=0,runs do
-			[p.mh(prog)](samps, numsamps, 0, lag, verbose)
+			[p.mh(prog)](samps, numsamps, 0, lag, randomseed, verbose)
 			var mean = 0.0
 			for j=0,numsamps do
 				mean = mean + double(samps(j).value)

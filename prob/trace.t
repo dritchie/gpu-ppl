@@ -152,7 +152,10 @@ local TraceTypeConstructor = S.memoize(function(program)
 
 	-- Retrieve a reference to the trace for the currently-executing
 	--    computation (Platform specific)
-	local currTrace = platform.getCurrTraceFn(Trace)
+	local gTrace = platform.global(&Trace)
+	local function currTrace()
+		return gTrace:get()
+	end
 	Trace.currTrace = currTrace
 
 	terra Trace:__init(doRejectInit: bool) : {}
