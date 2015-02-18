@@ -70,11 +70,10 @@ local mh = S.memoize(function(program)
 	end
 
 	-- MCMC main loop function
-	return terra(outsamps: &S.Vector(Sample(program)),
-				 numsamps: uint, burnin: uint, lag: uint, seed: uint, verbose: bool)
-		rand.init(seed, &[rand.globalState:get()])
+	-- Returns number of accepted proposals
+	local terra mhloop(outsamps: &Sample(program),
+				 numsamps: uint, burnin: uint, lag: uint, verbose: bool)
 		var iters = burnin + (numsamps * lag)
-		var t0 = util.currenttimeinseconds()
 		var currTrace = TraceType.salloc():init(true)
 		var nAccepted = 0
 		for i=0,iters do
@@ -90,17 +89,37 @@ local mh = S.memoize(function(program)
 			end
 			if mhKernel(currTrace) then nAccepted = nAccepted + 1 end
 			if i >= burnin and i % lag == 0 then
-				var newsamp = outsamps:insert()
-				newsamp:init(currTrace)
+				outsamps[i / lag]:init(currTrace)
 			end
 		end
-		var t1 = util.currenttimeinseconds()
-		if verbose then
-			S.printf("\n")
-			S.printf("Acceptance Ratio: %u/%u (%g%%)\n", nAccepted, iters,
-				100.0*double(nAccepted)/iters)
-			S.printf("Time: %g\n", t1 - t0)
+		return nAccepted
+	end
+
+	-- How inference actually launches is platform specific.
+	if platform.name == "x86" then
+
+		return terra(outsamps: &S.Vector(Sample(program)),
+					 numsamps: uint, burnin: uint, lag: uint, seed: uint, verbose: bool)
+			var iters = burnin + (numsamps * lag)
+			outsamps:resize(numsamps)
+			rand.init(seed, &[rand.globalState:get()])
+			var t0 = util.currenttimeinseconds()
+			var nAccepted = mhloop(&outsamps(0), numsamps, burnin, lag, verbose)
+			var t1 = util.currenttimeinseconds()
+			if verbose then
+				S.printf("\n")
+				S.printf("Acceptance Ratio: %u/%u (%g%%)\n", nAccepted, iters,
+					100.0*double(nAccepted)/iters)
+				S.printf("Time: %g\n", t1 - t0)
+			end
 		end
+
+	elseif platform.name == "cuda" then
+
+		error("MH for CUDA not implemented yet")
+
+	else
+		error("Can't compile MH for unknown platform " .. platform.name)
 	end
 
 end)
