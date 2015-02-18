@@ -25,6 +25,7 @@ globalmt.__index = globalmt
 
 return 
 {
+	name = "x86",
 	std = 
 	{
 		malloc = C.malloc,

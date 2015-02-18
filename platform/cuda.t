@@ -97,6 +97,7 @@ globalmt.__index = globalmt
 
 return 
 {
+	name = "cuda",
 	std = 
 	{
 		malloc = terralib.externfunction("malloc", {uint64} -> &opaque),
