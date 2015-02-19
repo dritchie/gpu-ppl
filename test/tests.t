@@ -3,6 +3,7 @@ local function test(platform)
 local p = require("prob")(platform)
 local Vector = require("lib.vector")(platform)
 local distrib = require("prob.distrib")(platform)
+local Sample = require("prob.sample")(platform)
 local maths = require("lib.maths")()
 
 ------------------------------------------------------------------------------
@@ -17,8 +18,15 @@ local function expectationTest(name, prog, trueExp)
 	local errtol = 0.07
 	local verbose = false
 
+	-- We assume that we can freely get the program's return type
+	local succ, typ = prog:peektype()
+	if not succ then
+		error("Program return type not specified")
+	end
+	local ReturnType = typ.returntype
+
 	local terra getEstimate()
-		var samps = [Vector(p.Sample(prog))].salloc():init()
+		var samps = [Vector(Sample(ReturnType))].salloc():init()
 		var est = 0.0
 		var err = 0.0
 		for i=0,runs do

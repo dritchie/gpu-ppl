@@ -6,40 +6,7 @@ local util = require("lib.util")(platform)
 local rand = require("lib.rand")(platform)
 local maths = require("lib.maths")(platform)
 local trace = require("prob.trace")(platform)
-
--------------------------------------------------------------------------------
-
--- A sample from a probabilistic program
-local Sample = terralib.memoize(function(program)
-
-	-- We assume that we can freely get the program's return type
-	local succ, typ = program:peektype()
-	if not succ then
-		error("Program return type not specified")
-	end
-	local ReturnType = typ.returntype
-
-	-- Get the trace type for the program
-	local TraceType = trace.Trace(program)
-
-	local struct Sample(S.Object)
-	{
-		value: ReturnType,
-		logprior: double,
-		loglikelihood: double,
-		logposterior: double
-	}
-
-	terra Sample:__init(tr: &TraceType)
-		S.copy(self.value, tr.returnVal)
-		self.logprior = tr.logprior
-		self.loglikelihood = tr.loglikelihood
-		self.logposterior = tr.logposterior
-	end
-
-	return Sample
-
-end)
+local Sample = require("prob.sample")(platform)
 
 -------------------------------------------------------------------------------
 
@@ -47,6 +14,13 @@ end)
 local mh = terralib.memoize(function(program)
 
 	local TraceType = trace.Trace(program)
+
+	-- We assume that we can freely get the program's return type
+	local succ, typ = program:peektype()
+	if not succ then
+		error("Program return type not specified")
+	end
+	local ReturnType = typ.returntype
 
 	-- Lightweight MH transition kernel
 	-- Modifies currTrace in place
@@ -72,7 +46,7 @@ local mh = terralib.memoize(function(program)
 
 	-- MCMC main loop function
 	-- Returns number of accepted proposals
-	local terra mhloop(outsamps: &Sample(program),
+	local terra mhloop(outsamps: &Sample(ReturnType),
 				 numsamps: uint, burnin: uint, lag: uint, verbose: bool)
 		var iters = burnin + (numsamps * lag)
 		var currTrace = TraceType.salloc():init(true)
@@ -90,7 +64,7 @@ local mh = terralib.memoize(function(program)
 			end
 			if mhKernel(currTrace) then nAccepted = nAccepted + 1 end
 			if i >= burnin and i % lag == 0 then
-				outsamps[i / lag]:init(currTrace)
+				outsamps[i / lag]:init(&currTrace.returnVal, currTrace.logposterior)
 			end
 		end
 		return nAccepted
@@ -99,7 +73,7 @@ local mh = terralib.memoize(function(program)
 	-- How inference actually launches is platform specific.
 	if platform.name == "x86" then
 
-		return terra(outsamps: &Vector(Sample(program)),
+		return terra(outsamps: &Vector(Sample(ReturnType)),
 					 numsamps: uint, burnin: uint, lag: uint, seed: uint, verbose: bool)
 			var iters = burnin + (numsamps * lag)
 			outsamps:resize(numsamps)
@@ -120,7 +94,7 @@ local mh = terralib.memoize(function(program)
 		local cuda = platform
 
 		-- The actual CUDA kernel that does the work.
-		local terra kernel(outsamps: &Sample(program),
+		local terra kernel(outsamps: &Sample(ReturnType),
 						   numthreads: uint, numsamps: uint, burnin: uint, lag: uint)
 			-- TODO: Fill in
 			-- init RNG
@@ -134,7 +108,7 @@ local mh = terralib.memoize(function(program)
 		})
 
 		-- CPU-side Terra wrapper that launches kernel and packages up the results
-		return terra(outsamps: &Vector(Sample(program)), numthreads: uint,
+		return terra(outsamps: &Vector(Sample(ReturnType)), numthreads: uint,
 					 numsamps: uint, burnin: uint, lag: uint, seed: uint, verbose: bool)
 			-- Allocate space for 'globals', point constant memory refs at this space
 			var gtraces : &&Trace
@@ -163,7 +137,6 @@ end)
 
 return 
 {
-	Sample = Sample,
 	mh = mh
 }
 
