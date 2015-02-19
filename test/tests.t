@@ -1,7 +1,7 @@
 local function test(platform)
 
 local p = require("prob")(platform)
-local S = require("lib.std")(platform)
+local Vector = require("lib.vector")(platform)
 local distrib = require("prob.distrib")(platform)
 local maths = require("lib.maths")()
 
@@ -18,7 +18,7 @@ local function expectationTest(name, prog, trueExp)
 	local verbose = false
 
 	local terra getEstimate()
-		var samps = [S.Vector(p.Sample(prog))].salloc():init()
+		var samps = [Vector(p.Sample(prog))].salloc():init()
 		var est = 0.0
 		var err = 0.0
 		for i=0,runs do
@@ -69,7 +69,7 @@ expectationTest(
 "categorical expectation",
 terra() : double
 	var items = array(0.2, 0.3, 0.4)
-	var params = [S.Vector(double)].salloc():init()
+	var params = [Vector(double)].salloc():init()
 	params:insert(0.2); params:insert(0.6); params:insert(0.2)
 	return items[p.categorical(params)]
 end,

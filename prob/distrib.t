@@ -1,6 +1,6 @@
 return require("platform.module")(function(platform)
 
-local S = require("lib.std")(platform)
+local Vector = require("lib.vector")(platform)
 local maths = require("lib.maths")(platform)
 local R = require("lib.rand")(platform)
 
@@ -278,7 +278,7 @@ end)
 
 D.categorical = terralib.memoize(function(real)
 	return {
-		sample = terra(params: &S.Vector(real)) : int
+		sample = terra(params: &Vector(real)) : int
 			var sum = real(0.0)
 			for i=0,params:size() do sum = sum + params(i) end
 			var result: int = 0
@@ -290,7 +290,7 @@ D.categorical = terralib.memoize(function(real)
 			until probAccum > x or result == params:size()
 			return result - 1
 		end,
-		logprob = terra(val: int, params: &S.Vector(real)) : real
+		logprob = terra(val: int, params: &Vector(real)) : real
 			if val < 0 or val >= params:size() then
 				return [-math.huge]
 			end
@@ -309,8 +309,8 @@ D.dirichlet = terralib.memoize(function(real)
 	return {
 		-- NOTE: It is up to the caller to manage the memory of the
 		--    returned vector.
-		sample = terra(params: &S.Vector(real)) : S.Vector(real)
-			var out : S.Vector(real)
+		sample = terra(params: &Vector(real)) : Vector(real)
+			var out : Vector(real)
 			out:init(params:size())
 			for i=0,params:size() do out:insert() end
 			var ssum = real(0.0)
@@ -324,7 +324,7 @@ D.dirichlet = terralib.memoize(function(real)
 			end
 			return out
 		end,
-		logprob = terra(theta: &S.Vector(real), params: &S.Vector(real)) : real
+		logprob = terra(theta: &Vector(real), params: &Vector(real)) : real
 			var sum = real(0.0)
 			for i=0,params:size() do sum = sum + params(i) end
 			var logp = [log_gamma(real)](sum)

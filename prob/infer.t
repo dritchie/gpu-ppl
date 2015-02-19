@@ -1,6 +1,7 @@
 return require("platform.module")(function(platform)
 
 local S = require("lib.std")(platform)
+local Vector = require("lib.vector")(platform)
 local util = require("lib.util")(platform)
 local rand = require("lib.rand")(platform)
 local maths = require("lib.maths")(platform)
@@ -98,7 +99,7 @@ local mh = terralib.memoize(function(program)
 	-- How inference actually launches is platform specific.
 	if platform.name == "x86" then
 
-		return terra(outsamps: &S.Vector(Sample(program)),
+		return terra(outsamps: &Vector(Sample(program)),
 					 numsamps: uint, burnin: uint, lag: uint, seed: uint, verbose: bool)
 			var iters = burnin + (numsamps * lag)
 			outsamps:resize(numsamps)
@@ -118,9 +119,6 @@ local mh = terralib.memoize(function(program)
 
 		local cuda = platform
 
-		-- We'll need some CPU-side postprocessing, so include the x86 version of std
-		local Sx = require("lib.std")(require("platform.x86"))
-
 		-- The actual CUDA kernel that does the work.
 		local terra kernel(outsamps: &Sample(program),
 						   numthreads: uint, numsamps: uint, burnin: uint, lag: uint)
@@ -136,7 +134,7 @@ local mh = terralib.memoize(function(program)
 		})
 
 		-- CPU-side Terra wrapper that launches kernel and packages up the results
-		return terra(outsamps: &Sx.Vector(Sample(program)), numthreads: uint,
+		return terra(outsamps: &Vector(Sample(program)), numthreads: uint,
 					 numsamps: uint, burnin: uint, lag: uint, seed: uint, verbose: bool)
 			-- Allocate space for 'globals', point constant memory refs at this space
 			var gtraces : &&Trace

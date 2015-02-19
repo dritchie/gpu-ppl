@@ -1,13 +1,14 @@
 return require("platform.module")(function(platform)
 
 local S = require("lib.std")(platform)
+local Vector = require("lib.vector")(platform)
 local util = require("lib.util")(platform)
 
 -------------------------------------------------------------------------------
 
 -- A random choice address, represented as a stack of identifiers
 local Identifier = uint32
-local Address = S.Vector(Identifier)
+local Address = Vector(Identifier)
 
 -------------------------------------------------------------------------------
 
@@ -30,7 +31,7 @@ local SingleTypeTrace = terralib.memoize(function(ERPType)
 
 	local struct SingleTypeListTrace(S.Object)
 	{
-		choicerecs : S.Vector(AddrChoicePair)
+		choicerecs : Vector(AddrChoicePair)
 	}
 
 	terra SingleTypeListTrace:numChoices()
