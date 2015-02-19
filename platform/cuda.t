@@ -95,6 +95,10 @@ local globalmt =
 }
 globalmt.__index = globalmt
 
+
+local curt = terralib.includec("cuda_runtime.h")
+
+
 return 
 {
 	name = "cuda",
@@ -108,6 +112,11 @@ return
 		    local buf = createbuffer({...})
 		    return `vprintf(fmt,buf) 
 		end),
+
+		-- Platforms that represent CPU-driven co-processors provide this function
+		mempcyToHost = terra(dst: &opaque, src: &opaque, size: uint64)
+			return curt.cudaMemcpy(dst, src, size, curt.cudaMemcpyDeviceToHost)
+		end
 	},
 
 	rand = 
@@ -150,7 +159,8 @@ return
 		return obj
 	end
 
-	runtime = terralib.includec("cuda_runtime.h")
+	-- CUDA specific
+	runtime = curt
 }
 
 

@@ -1,9 +1,17 @@
 return require("platform.module")(function(platform)
 
+local util = require("lib.util")
 local S = require("lib.std")(platform)
-local util = require("lib.util")(platform)
 local trace = require("prob.trace")(platform)
 local langprims = require("prob.langprims")(platform)
+
+
+-- Generate an S.copy statement when the second argument may be pointer-to-struct
+local ptrSafeCopy = macro(function(self, other)
+	return quote
+		S.copy(self, [(other:gettype() == &self:gettype()) and (`@other) or other])
+	end
+end)
 
 
 -- An ERP is built from a sample function, a logprob function, and
@@ -74,7 +82,7 @@ local function makeERP(sample, logprob, propose)
 		self.value = sample([params])
 		escape
 			for i,_ in ipairs(ParamTypes) do
-				emit quote util.ptrSafeCopy(self.[paramField(i)], [params[i]]) end
+				emit quote ptrSafeCopy(self.[paramField(i)], [params[i]]) end
 			end
 		end
 		self:rescore()
@@ -94,7 +102,7 @@ local function makeERP(sample, logprob, propose)
 					if not util.equal(self.[paramField(i)], p) then
 						needsRescore = true
 						S.rundestructor(self.[paramField(i)])
-						util.ptrSafeCopy(self.[paramField(i)], [params[i]])
+						ptrSafeCopy(self.[paramField(i)], [params[i]])
 					end
 				end
 			end

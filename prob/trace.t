@@ -1,8 +1,8 @@
 return require("platform.module")(function(platform)
 
+local util = require("lib.util")
 local S = require("lib.std")(platform)
 local Vector = require("lib.vector")(platform)
-local util = require("lib.util")(platform)
 
 -------------------------------------------------------------------------------
 

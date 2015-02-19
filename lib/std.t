@@ -1,5 +1,7 @@
 return require("platform.module")(function(platform)
 
+local util = require("lib.util")
+
 local S = {}
 
 -- Add platform-specific standard library functions: printf, malloc, free, etc.
@@ -95,14 +97,10 @@ end)
 local generateinit = macro(function(self, ...)
     local T = self:gettype()
     local args = {...}
-    return quote
-        escape
-            if T.methods.__init then
-                emit `self:__init([args])
-            else
-                emit `S.initmembers(self)
-            end
-        end
+    if T.methods.__init then
+        return `self:__init([args])
+    else
+        return `S.initmembers(self)
     end
 end)
 
@@ -125,7 +123,6 @@ S.copy = macro(function(self, other)
             end
         end
     end
-    local To = other:gettype()
     return quote
         self = other
     end
@@ -147,16 +144,79 @@ end)
 
 local generatecopy = macro(function(self, other)
     local T = self:gettype()
-    return quote
-        escape
-            if T.methods.__copy then
-                emit `self:__copy(&other)
-            else
-                emit `S.copymembers(self, other)
-            end
-        end
+    if T.methods.__copy then
+        return `self:__copy(&other)
+    else
+        return `S.copymembers(self, other)
     end
 end)
+
+
+
+-- If platform is a CPU-driven coprocessor, then we also provide methods
+--    for copying an object from device to host.
+-- We assume that the 'src' object itself, but not any dynamic memory
+--    it refers to, has already been copied to the host (thus we are
+--    free to inspect its members).
+if S.memcpyToHost then
+
+    S.copyToHost = macro(function(src, dst)
+        local T = src:gettype()
+        local Td = dst:gettype()
+        assert(T == Td or util.areStructurallyEquivalent(T, Td))
+        local function hascopy(T)
+            if T:isstruct() then return T:getmethod("copyToHost")
+            elseif T:isarray() then return hascopy(T.type)
+            else return false end
+        end
+        if T:isstruct() and hascopy(T) then
+            return `src:copyToHost(&dst)
+        elseif T:isarray() and hascopy(T) then
+            return quote
+                for i=0,T.N do
+                    S.copyToHost(src[i], dst[i])
+                end
+            end
+        end
+        if T == Td then
+            return quote
+                dst = src
+            end
+        else
+            -- Types are structurally-equivalent but not equal, so we
+            --    need a 'cast-copy' here.
+            return quote
+                dst = @([&Td](&src))
+            end
+        end
+    end)
+
+    S.copyMembersToHost = macro(function(src, dst)
+        local T = src:gettype()
+        local Td = dst:gettype()
+        assert(T == Td or util.areStructurallyEquivalent(T, Td))
+        local entries = T:getentries()
+        return quote
+            escape
+                for _,e in ipairs(entries) do
+                    if e.field then  --not a union
+                        emit `S.copyToHost(src.[e.field], dst.[e.field])
+                    end
+                end
+            end
+        end
+    end)
+
+    local generateCopyToHost = macro(function(src, dst)
+        local T = src:gettype()
+        if T.methods.__copyToHost then
+            return `src:__copyToHost(&dst)
+        else
+            return `S.copyMembersToHost(src, dst)
+        end
+    end)
+
+end
 
 
 

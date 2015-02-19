@@ -1,8 +1,8 @@
 return require("platform.module")(function(platform)
 
+local util = require("lib.util")
 local S = require("lib.std")(platform)
 local Vector = require("lib.vector")(platform)
-local util = require("lib.util")(platform)
 local rand = require("lib.rand")(platform)
 local maths = require("lib.maths")(platform)
 local trace = require("prob.trace")(platform)

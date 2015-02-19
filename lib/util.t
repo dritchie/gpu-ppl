@@ -1,7 +1,3 @@
-return require("platform.module")(function(platform)
-
-local S = require("lib.std")(platform)
-
 local U = {}
 
 
@@ -9,8 +5,10 @@ local U = {}
 -- Used in some places to determine when something should be passed by value or by pointer
 -- (POD objects pass by value, non-POD objects pass by pointer)
 local function isPOD(typ)
-	-- Non-struct types are fine
-	if not typ:isstruct() then return true end
+	-- Array types are POD if their element type is POD
+	if typ:isarray() then return isPOD(type.type) end
+	-- Primitive types and pointer types are fine
+	if typ:isprimitive() or typ:ispointer() then return true end
 	-- User-defined ctors, dtors, or copiers are a no-no
 	if typ:getmethod("__init") or typ:getmethod("__destruct") or typ:getmethod("__copy") then
 		return false
@@ -22,6 +20,35 @@ local function isPOD(typ)
 	return true
 end
 U.isPOD = isPOD
+
+
+-- Test if two types are structurally equivalent
+local function areStructurallyEquivalent(T1, T2)
+	-- Two primitives are equivalent if they have the same size
+	if T1:isprimitive() and T2:isprimitive() then
+		return (sizeof(T1) == sizeof(T2))
+	-- Two pointers are always equivalent, since they have the same size
+	elseif T1:ispointer() and T2:ispointer() then
+		return true
+	-- Two arrays are equivalent if their element types are equivalent
+	--    and they have the same length
+	elseif T1:isarray() and T2:isarray() then
+		return (T1.N == T2.N) and
+			   areStructurallyEquivalent(T1.type, T2.type)
+	-- Two structs are equivalent if all their fields are
+	elseif T1:isstruct() and T2:isstruct() then
+		for i,e in ipairs(T1.entries) do
+			if not areStructurallyEquivalent(e.type, T2.entries[i].type) then
+				return false
+			end
+		end
+		return true
+	-- All other cases are false
+	else
+		return false
+	end
+end
+U.areStructurallyEquivalent = areStructurallyEquivalent
 
 
 -- Equality comparison that also handles arrays
@@ -45,14 +72,6 @@ U.swap = macro(function(a, b)
 		var tmp = a
 		a = b
 		b = tmp
-	end
-end)
-
-
--- Generate an S.copy statement when the second argument may be pointer-to-struct
-U.ptrSafeCopy = macro(function(self, other)
-	return quote
-		S.copy(self, [(other:gettype() == &self:gettype()) and (`@other) or other])
 	end
 end)
 
@@ -90,5 +109,3 @@ double CurrentTimeInSeconds() {
 
 
 return U
-
-end)
