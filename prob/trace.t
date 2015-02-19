@@ -12,7 +12,7 @@ local Address = S.Vector(Identifier)
 -------------------------------------------------------------------------------
 
 -- A trace of all ERPs of one particular type used by a program.
-local SingleTypeTrace = S.memoize(function(ERPType)
+local SingleTypeTrace = terralib.memoize(function(ERPType)
 
 	-- A simple implementation using a flat list representation.
 
@@ -98,7 +98,7 @@ local compilingProgram = nil
 -- A trace of all ERPs of all types that could be potentially used by a program
 local ERPTypes = {}
 local function registerERPType(ERPType) table.insert(ERPTypes, ERPType) end
-local TraceTypeConstructor = S.memoize(function(program)
+local TraceTypeConstructor = terralib.memoize(function(program)
 
 	-- We assume that we can freely get the program's return type
 	local succ, typ = program:peektype()

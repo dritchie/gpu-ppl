@@ -9,7 +9,7 @@ local D = {}
 
 --------------------------------------------
 
-D.bernoulli = S.memoize(function(real)
+D.bernoulli = terralib.memoize(function(real)
 	return {
 		sample = terra(p: real) : bool
 			var randval = R.random()
@@ -29,7 +29,7 @@ end)
 
 --------------------------------------------
 
-D.uniform = S.memoize(function(real)
+D.uniform = terralib.memoize(function(real)
 	return {
 		sample = terra(lo: real, hi: real) : real
 			var u = R.random()
@@ -44,7 +44,7 @@ end)
 
 --------------------------------------------
 
-D.uniformInt = S.memoize(function(real)
+D.uniformInt = terralib.memoize(function(real)
 	return {
 		sample = terra(lo: int, hi: int) : int
 			var u = R.random()
@@ -59,7 +59,7 @@ end)
 
 --------------------------------------------
 
-D.gaussian = S.memoize(function(real)
+D.gaussian = terralib.memoize(function(real)
 	local flt = double
 	return {
 		sample = terra(mu: real, sigma: real) : real
@@ -92,7 +92,7 @@ local terra init_gamma_cof()
 					  -0.5395239384953e-5)
 end
 init_gamma_cof()
-local log_gamma = S.memoize(function(real)
+local log_gamma = terralib.memoize(function(real)
 	return terra(xx: real)
 		var x = xx - 1.0
 		var tmp = x + 5.5
@@ -107,7 +107,7 @@ local log_gamma = S.memoize(function(real)
 end)
 
 
-D.gamma = S.memoize(function(real)
+D.gamma = terralib.memoize(function(real)
 	local flt = double
 	local terra sample(shape: real, scale: real) : real
 		if shape < 1.0 then return sample(1.0+shape,scale) * maths.pow(R.random(), 1.0/shape) end
@@ -137,14 +137,14 @@ end)
 
 --------------------------------------------
 
-local log_beta = S.memoize(function(real)
+local log_beta = terralib.memoize(function(real)
 	local lg = log_gamma(real)
 	return terra(a: real, b: real)
 		return lg(a) + lg(b) - lg(a+b)
 	end
 end)
 
-D.beta = S.memoize(function(real)
+D.beta = terralib.memoize(function(real)
 	return {
 		sample = terra(a: real, b: real) : real
 			var x = [D.gamma(real)].sample(a, 1.0)
@@ -162,7 +162,7 @@ end)
 
 --------------------------------------------
 
-local g = S.memoize(function(real)
+local g = terralib.memoize(function(real)
 	return terra(x: real)
 		if x == 0.0 then return 1.0 end
 		if x == 1.0 then return 0.0 end
@@ -171,7 +171,7 @@ local g = S.memoize(function(real)
 	end
 end)
 
-D.binomial = S.memoize(function(real)
+D.binomial = terralib.memoize(function(real)
 	local inv2 = 1/2
 	local inv3 = 1/3
 	local inv6 = 1/6
@@ -245,7 +245,7 @@ local terra lnfact(x: int)
 	return ssum
 end
 
-D.poisson = S.memoize(function(real)
+D.poisson = terralib.memoize(function(real)
 	return {
 		sample = terra(mu: real) : int
 			var k = 0.0
@@ -276,7 +276,7 @@ end)
 
 --------------------------------------------
 
-D.categorical = S.memoize(function(real)
+D.categorical = terralib.memoize(function(real)
 	return {
 		sample = terra(params: &S.Vector(real)) : int
 			var sum = real(0.0)
@@ -305,7 +305,7 @@ end)
 
 --------------------------------------------
 
-D.dirichlet = S.memoize(function(real)
+D.dirichlet = terralib.memoize(function(real)
 	return {
 		-- NOTE: It is up to the caller to manage the memory of the
 		--    returned vector.

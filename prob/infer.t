@@ -9,7 +9,7 @@ local trace = require("prob.trace")(platform)
 -------------------------------------------------------------------------------
 
 -- A sample from a probabilistic program
-local Sample = S.memoize(function(program)
+local Sample = terralib.memoize(function(program)
 
 	-- We assume that we can freely get the program's return type
 	local succ, typ = program:peektype()
@@ -43,7 +43,7 @@ end)
 -------------------------------------------------------------------------------
 
 -- Do lightweight MH
-local mh = S.memoize(function(program)
+local mh = terralib.memoize(function(program)
 
 	local TraceType = trace.Trace(program)
 
@@ -116,7 +116,44 @@ local mh = S.memoize(function(program)
 
 	elseif platform.name == "cuda" then
 
-		error("MH for CUDA not implemented yet")
+		local cuda = platform
+
+		-- We'll need some CPU-side postprocessing, so include the x86 version of std
+		local Sx = require("lib.std")(require("platform.x86"))
+
+		-- The actual CUDA kernel that does the work.
+		local terra kernel(outsamps: &Sample(program),
+						   numthreads: uint, numsamps: uint, burnin: uint, lag: uint)
+			-- TODO: Fill in
+			-- init RNG
+		end
+
+		-- Compile it, passing in constant memory refs for 'globals'
+		local CUDAmodule = terralib.cudacompile({
+			kernel = kernel,
+			gTraces = Trace.globalTrace:getimpl(),
+			gRNGS = rand.globalState:getimpl()
+		})
+
+		-- CPU-side Terra wrapper that launches kernel and packages up the results
+		return terra(outsamps: &Sx.Vector(Sample(program)), numthreads: uint,
+					 numsamps: uint, burnin: uint, lag: uint, seed: uint, verbose: bool)
+			-- Allocate space for 'globals', point constant memory refs at this space
+			var gtraces : &&Trace
+			var grngs : &rand.State
+			cuda.runtime.cudaMalloc([&&opaque](&gtraces), sizeof(&Trace)*numthreads)
+			cuda.runtime.cudaMalloc([&&opaque](&grngs), sizeof(rand.State)*numthreads)
+			cuda.runtime.cudaMemcpy(CUDAmodule.gTraces, gtraces, sizeof(&&Trace),
+									cuda.runtime.cudaMemcpyHostToDevice)
+			cuda.runtime.cudaMemcpy(CUDAmodule.gRNGS, grngs, sizeof(&rand.State),
+									cuda.runtime.cudaMemcpyHostToDevice)
+			-- Allocate space for output samples
+			-- var samps : &
+
+			-- Cleanup
+			cuda.runtime.cudaFree(gtraces)
+			cuda.runtime.cudaFree(grngs)
+		end
 
 	else
 		error("Can't compile MH for unknown platform " .. platform.name)
