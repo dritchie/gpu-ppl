@@ -1,25 +1,24 @@
-local function test(platform)
-
-local p = require("prob")(platform)
-local Vector = require("lib.vector")(platform)
-local distrib = require("prob.distrib")(platform)
-local Sample = require("prob.sample")(platform)
 local maths = require("lib.maths")()
+local Vector = require("lib.vector")()
+local Sample = require("prob.sample")()
+local infer = require("prob.infer")
 
-------------------------------------------------------------------------------
 
-local randomseed = 42
 
-local function expectationTest(name, prog, trueExp)
+local function doTests(platform)
+
+local function expectationTest(name, progmodule, trueExp)
 
 	local numsamps = 200
 	local lag = 20
 	local runs = 5
 	local errtol = 0.07
+	local randomseed = 42
 	local verbose = false
 
 	-- We assume that we can freely get the program's return type
-	local succ, typ = prog:peektype()
+	local hostprog = progmodule()
+	local succ, typ = hostprog:peektype()
 	if not succ then
 		error("Program return type not specified")
 	end
@@ -30,7 +29,7 @@ local function expectationTest(name, prog, trueExp)
 		var est = 0.0
 		var err = 0.0
 		for i=0,runs do
-			[p.mh(prog)](samps, numsamps, 0, lag, randomseed, verbose)
+			[infer(platform).mh(progmodule)](samps, numsamps, 0, lag, randomseed, verbose)
 			var mean = 0.0
 			for j=0,numsamps do
 				mean = mean + double(samps(j).value)
@@ -57,142 +56,172 @@ end
 
 ------------------------------------------------------------------------------
 
+local pmodule = require("prob.module")
+
 expectationTest(
 "flip expectation",
-terra() : bool
-	return p.flip(0.7)
-end,
+pmodule(function(platform)
+	return terra() : bool
+		return p.flip(0.7)
+	end
+end),
 0.7
 )
 
 expectationTest(
 "uniform expectation",
-terra() : double
-	return p.uniform(0.1, 0.4)
-end,
+pmodule(function(platform)
+	return terra() : double
+		return p.uniform(0.1, 0.4)
+	end
+end),
 0.5*(.1+.4)
 )
 
 expectationTest(
 "categorical expectation",
-terra() : double
-	var items = array(0.2, 0.3, 0.4)
-	var params = [Vector(double)].salloc():init()
-	params:insert(0.2); params:insert(0.6); params:insert(0.2)
-	return items[p.categorical(params)]
-end,
+pmodule(function(platform)
+	local Vector = require("lib.vector")(platform)
+	return terra() : double
+		var items = array(0.2, 0.3, 0.4)
+		var params = [Vector(double)].salloc():init()
+		params:insert(0.2); params:insert(0.6); params:insert(0.2)
+		return items[p.categorical(params)]
+	end
+end),
 0.2*.2 + 0.6*.3 + 0.2*.4
 )
 
 expectationTest(
 "gaussian expectation",
-terra() : double
-	return p.gaussian(0.1, 0.5)
-end,
+pmodule(function(platform)
+	return terra() : double
+		return p.gaussian(0.1, 0.5)
+	end
+end),
 0.1
 )
 
 expectationTest(
 "gamma expectation",
-terra() : double
-	return p.gamma(2.0, 2.0)/10.0
-end,
+pmodule(function(platform)
+	return terra() : double
+		return p.gamma(2.0, 2.0)/10.0
+	end
+end),
 0.4
 )
 
 expectationTest(
 "beta expectation",
-terra() : double
-	return p.beta(2.0, 5.0)
-end,
+pmodule(function(platform)
+	return terra() : double
+		return p.beta(2.0, 5.0)
+	end
+end),
 2.0/(2.0+5.0)
 )
 
 expectationTest(
 "binomial expectation",
-terra() : double
-	return p.binomial(0.5, 40)/40.0
-end,
+pmodule(function(platform)
+	return terra() : double
+		return p.binomial(0.5, 40)/40.0
+	end
+end),
 0.5
 )
 
 expectationTest(
 "poisson expectation",
-terra() : double
-	return p.poisson(4.0)/10.0
-end,
+pmodule(function(platform)
+	return terra() : double
+		return p.poisson(4.0)/10.0
+	end
+end),
 0.4
 )
 
 expectationTest(
 "condition expectation",
-terra() : bool
-	var a = p.flip(0.5)
-	p.condition(a)
-	return a
-end,
+pmodule(function(platform)
+	return terra() : bool
+		var a = p.flip(0.5)
+		p.condition(a)
+		return a
+	end
+end),
 1.0
 )
 
 expectationTest(
 "factor expectation",
-terra() : double
-	var x = p.uniform(-1.0, 1.0)
-	p.factor([distrib.gaussian(double)].logprob(x, 0.3, 0.1))
-	return x
-end,
+pmodule(function(platform)
+	local distrib = require("prob.distrib")(platform)
+	return terra() : double
+		var x = p.uniform(-1.0, 1.0)
+		p.factor([distrib.gaussian(double)].logprob(x, 0.3, 0.1))
+		return x
+	end
+end),
 0.3
 )
 
 expectationTest(
 "multiple choices expectation",
-terra() : bool
-	var a = p.flip(0.5)
-	var b = p.flip(0.5)
-	p.condition(a or b)
-	return (a and b)
-end,
+pmodule(function(platform)
+	return terra() : bool
+		var a = p.flip(0.5)
+		var b = p.flip(0.5)
+		p.condition(a or b)
+		return (a and b)
+	end
+end),
 1.0/3.0
 )
 
 expectationTest(
 "control flow (1) expectation",
-terra() : bool
-	if p.flip(0.7) then
-		return p.flip(0.2)
-	else
-		return p.flip(0.8)
+pmodule(function(platform)
+	return terra() : bool
+		if p.flip(0.7) then
+			return p.flip(0.2)
+		else
+			return p.flip(0.8)
+		end
 	end
-end,
+end),
 0.7*0.2 + 0.3*0.8
 )
 
 expectationTest(
 "control flow (2) expectation",
-terra() : bool
-	var weight = 0.8
-	if p.flip(0.7) then weight = 0.2 end
-	return p.flip(weight)
-end,
+pmodule(function(platform)
+	return terra() : bool
+		var weight = 0.8
+		if p.flip(0.7) then weight = 0.2 end
+		return p.flip(weight)
+	end
+end),
 0.7*0.2 + 0.3*0.8
 )
 
 expectationTest(
 "subroutine expectation",
-(function()
+pmodule(function(platform)
 	local helper = p.fn(terra()
 		return p.gaussian(0.1, 0.5)
 	end)
 	return terra() : double
 		return helper()
 	end
-end)(),
+end),
 0.1
 )
 
 expectationTest(
 "recursive subroutine expectation",
-(function()
+pmodule(function(platform)
 	local powerlaw = p.fn()
 	powerlaw:define(terra(prob: double, x: int) : int
 		if p.flip(prob) then
@@ -205,15 +234,17 @@ expectationTest(
 		var a = powerlaw(0.3, 1)
 		return a < 5
 	end
-end)(),
+end),
 0.7599
 )
 
-end
-
 ------------------------------------------------------------------------------
 
-test(require("platform.x86"))
+end
+
+
+
+doTests(require("platform.x86"))
 
 
 

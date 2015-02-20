@@ -1,17 +1,21 @@
+local util = require("lib.util")
+
+
 return require("platform.module")(function(platform)
 
-local util = require("lib.util")
-local S = require("lib.std")(platform)
-local Vector = require("lib.vector")(platform)
+
 local rand = require("lib.rand")(platform)
 local maths = require("lib.maths")(platform)
 local trace = require("prob.trace")(platform)
 local Sample = require("prob.sample")(platform)
+local S = require("lib.std")(platform)
+local Vector = require("lib.vector")(platform)
 
--------------------------------------------------------------------------------
 
 -- Do lightweight MH
-local mh = terralib.memoize(function(program)
+local mh = terralib.memoize(function(progmodule)
+
+	local program = progmodule(platform)
 
 	local TraceType = trace.Trace(program)
 
@@ -92,12 +96,22 @@ local mh = terralib.memoize(function(program)
 	elseif platform.name == "cuda" then
 
 		local cuda = platform
+		local host = require("platform.x86")
+
+		local HostS = require("lib.std")(host)
+		local HostVector = require("lib.vector")(host)
+		local HostSample = require("prob.sample")(host)
+		local hostprogram = progmodule(host)
+		succ, typ = hostprogram:peektype()
+		local HostReturnType = type.returntype
 
 		-- The actual CUDA kernel that does the work.
-		local terra kernel(outsamps: &Sample(ReturnType),
-						   numthreads: uint, numsamps: uint, burnin: uint, lag: uint)
-			-- TODO: Fill in
-			-- init RNG
+		-- Each thread generates numsamps samples out output.
+		local terra kernel(outsamps: &Sample(ReturnType), numthreads: uint,
+						   numsamps: uint, burnin: uint, lag: uint, seed: uint)
+			var iters = burnin + (numsamps * lag)
+			rand.init(seed, ???seqid???, 0, &[rand.globalState:get()])
+			var nAccepted = mhloop(outsamps, numsamps, burnin, lag, verbose)
 		end
 
 		-- Compile it, passing in constant memory refs for 'globals'
@@ -108,7 +122,7 @@ local mh = terralib.memoize(function(program)
 		})
 
 		-- CPU-side Terra wrapper that launches kernel and packages up the results
-		return terra(outsamps: &Vector(Sample(ReturnType)), numthreads: uint,
+		return terra(outsamps: &HostVector(HostSample(HostReturnType)), numthreads: uint,
 					 numsamps: uint, burnin: uint, lag: uint, seed: uint, verbose: bool)
 			-- Allocate space for 'globals', point constant memory refs at this space
 			var gtraces : &&Trace
@@ -119,12 +133,37 @@ local mh = terralib.memoize(function(program)
 									cuda.runtime.cudaMemcpyHostToDevice)
 			cuda.runtime.cudaMemcpy(CUDAmodule.gRNGS, grngs, sizeof(&rand.State),
 									cuda.runtime.cudaMemcpyHostToDevice)
-			-- Allocate space for output samples
-			-- var samps : &
+
+			-- Allocate space for samples
+			var samps : &Sample(ReturnType)
+			cuda.runtime.cudaMalloc([&&opaque](&samps), sizeof(Sample(ReturnType))*numsamps*numthreads)
+
+			-- Launch kernel
+			var t0 = util.currenttimeinseconds()
+			kernel(samps, numthreads, numsamps, burnin, lag)
+			var t1 = util.currenttimeinseconds()
+
+			-- TODO: Make verbose output work by extracting acceptance rate from kernel somehow
+			if verbose then
+				HostS.printf("\n")
+				-- HostS.printf("Acceptance Ratio: %u/%u (%g%%)\n", nAccepted, iters,
+				-- 	100.0*double(nAccepted)/iters)
+				HostS.printf("Time: %g\n", t1 - t0)
+			end
+
+			-- Copy samples to host
+			var tmpsamps = [&Sample(ReturnType)](HostS.malloc(sizeof(Sample(ReturnType))*numsamps*numthreads))
+			S.memcpyToHost(tmpsamps, samps, sizeof(Sample(ReturnType))*numsamps*numthreads)
+			outsamps:resize(numsamps*numthreads)
+			for i=0,numsamps*numthreads do
+				tmpsamps[i]:copyToHost(outsamps:get(i))
+			end
+			HostS.free(tmpsamps)
 
 			-- Cleanup
 			cuda.runtime.cudaFree(gtraces)
 			cuda.runtime.cudaFree(grngs)
+			cuda.runtime.cudaFree(samps)
 		end
 
 	else
