@@ -233,7 +233,7 @@ end)
 
 -- Now we define the 'concrete' trace type which is specialized on the program
 --    being run.
-local TraceTypeConstructor = terralib.memoize(function(program)
+local Trace = terralib.memoize(function(program)
 
 	-- We assume that we can freely get the program's return type
 	local succ, typ = program:peektype()
@@ -312,17 +312,6 @@ local TraceTypeConstructor = terralib.memoize(function(program)
 	return Trace
 
 end)
-
--- This extra wrapper is necessary so that the function Trace() is safely
---    re-entrant. If we don't do this, then we'll end up re-entering the
---    actual type constructor when we try to compile a program, which will
---    result in two structurally-equivalent Trace(program) types that the
---    type system considers to be different.
-local Trace = function(program)
-	local T = TraceTypeConstructor(program)
-	program:compile(true)
-	return T
-end
 
 -------------------------------------------------------------------------------
 
