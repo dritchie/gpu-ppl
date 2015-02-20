@@ -110,7 +110,8 @@ local mh = terralib.memoize(function(progmodule)
 		local terra kernel(outsamps: &Sample(ReturnType), numthreads: uint,
 						   numsamps: uint, burnin: uint, lag: uint, seed: uint)
 			var iters = burnin + (numsamps * lag)
-			rand.init(seed, ???seqid???, 0, &[rand.globalState:get()])
+			-- TODO: compute seqid
+			-- rand.init(seed, ???seqid???, 0, &[rand.globalState:get()])
 			var nAccepted = mhloop(outsamps, numsamps, burnin, lag, verbose)
 		end
 

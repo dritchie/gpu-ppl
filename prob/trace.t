@@ -1,6 +1,7 @@
 return require("platform.module")(function(platform)
 
 local util = require("lib.util")
+local inherit = require("lib.inherit")
 local S = require("lib.std")(platform)
 local Vector = require("lib.vector")(platform)
 
@@ -92,23 +93,25 @@ local SingleTypeTrace = terralib.memoize(function(ERPType)
 end)
 
 
--- Program currently being compiled
-local compilingProgram = nil
+-------------------------------------------------------------------------------
 
 
 -- A trace of all ERPs of all types that could be potentially used by a program
+-- This is the 'base' type of all traces, in that it doesn't depend upon the
+--    return type of the program being run.
+-- Later, we'll define a type constructor for static subtypes of this trace that
+--    are specialized on a particular program's return type.
+
+-- We have to defer creation of this type until all ERPs have been defined and
+--    registered in the erpdefs module, since the layout of the type depends
+--    upon what ERPs are available.
+-- So instead of defining the type eagerly, we define it lazily by wrapping
+--    it in a memoized thunk.
 local ERPTypes = {}
 local function registerERPType(ERPType) table.insert(ERPTypes, ERPType) end
-local TraceTypeConstructor = terralib.memoize(function(program)
+local BaseTrace = terralib.memoize(function()
 
-	-- We assume that we can freely get the program's return type
-	local succ, typ = program:peektype()
-	if not succ then
-		error("Program return type not specified")
-	end
-	local ReturnType = typ.returntype
-
-	local struct Trace(S.Object)
+	local struct BaseTrace
 	{
 		logprior: double
 		loglikelihood: double
@@ -116,9 +119,16 @@ local TraceTypeConstructor = terralib.memoize(function(program)
 		newlogprob: double
 		oldlogprob: double
 		address: Address
-		returnVal: ReturnType
-		hasReturnVal: bool
 	}
+
+	-- Retrieve a reference to the trace for the currently-executing
+	--    computation (Platform specific)
+	local globalTrace = platform.global(&BaseTrace)
+	local function currTrace()
+		return globalTrace:get()
+	end
+	BaseTrace.globalTrace = globalTrace
+	BaseTrace.currTrace = currTrace
 
 	-- Map an ERPType to the corresponding subtrace member name
 	local erptype2index = {}
@@ -132,9 +142,9 @@ local TraceTypeConstructor = terralib.memoize(function(program)
 		return string.format("trace%d", i)
 	end
 
-	-- Add all subtrace members to the Trace struct
+	-- Add all subtrace members to the BaseTrace struct
 	for _,erpt in ipairs(ERPTypes) do
-		Trace.entries:insert({
+		BaseTrace.entries:insert({
 			field = erptype2membername(erpt),
 			type = SingleTypeTrace(erpt)
 		})
@@ -150,15 +160,96 @@ local TraceTypeConstructor = terralib.memoize(function(program)
 			end
 		end
 	end
+	BaseTrace.forAllSubtraces = forAllSubtraces
 
-	-- Retrieve a reference to the trace for the currently-executing
-	--    computation (Platform specific)
-	local globalTrace = platform.global(&Trace)
-	local function currTrace()
-		return globalTrace:get()
+	terra BaseTrace:numChoices()
+		var n = 0
+		[forAllSubtraces(self, function(trace)
+			return quote n = n + trace:numChoices() end
+		end)]
+		return n
 	end
-	Trace.globalTrace = globalTrace
-	Trace.currTrace = currTrace
+
+	terra BaseTrace:pushAddress(id: Identifier)
+		self.address:insert(id)
+	end
+
+	terra BaseTrace:popAddress()
+		self.address:remove()
+	end
+
+	terra BaseTrace:addPriorProb(plp: double)
+		self.logprior = self.logprior + plp
+		self.logposterior = self.logprior + self.loglikelihood
+	end
+
+	terra BaseTrace:addFactor(fac: double)
+		self.loglikelihood = self.loglikelihood + fac
+		self.logposterior = self.logprior + self.loglikelihood
+	end
+
+	terra BaseTrace:enforceConstraint(pred: bool)
+		if not pred then
+			self.loglikelihood = -math.huge
+			self.logposterior = -math.huge
+		end
+	end
+
+	function BaseTrace.lookup(ERPType)
+		local params = ERPType.ParamTypes:map(function(t) return symbol(t) end)
+		return terra(self: &BaseTrace, [params])
+			var choicerec, found = self.[erptype2membername(ERPType)]:lookup(&self.address, [params])
+			if found then
+				choicerec:checkForChanges([params])
+			else
+				self.newlogprob = self.newlogprob + choicerec.logprob
+			end
+			self:addPriorProb(choicerec.logprob)
+			return choicerec
+		end
+	end
+
+	-- Propose a change to random choice i
+	-- Returns the forward and reverse probabilities of the proposal
+	terra BaseTrace:proposeChangeToChoice(i: uint)
+		[forAllSubtraces(self, function(trace)
+			return quote
+				var n = trace:numChoices()
+				if i < n then
+					return trace:getChoice(i):proposal()
+				end
+				i = i - n
+			end
+		end)]
+	end
+
+	return BaseTrace
+
+end)
+
+
+-------------------------------------------------------------------------------
+
+
+-- Now we define the 'concrete' trace type which is specialized on the program
+--    being run.
+local TraceTypeConstructor = terralib.memoize(function(program)
+
+	-- We assume that we can freely get the program's return type
+	local succ, typ = program:peektype()
+	if not succ then
+		error("Program return type not specified")
+	end
+	local ReturnType = typ.returntype
+
+	local struct Trace(S.Object)
+	{
+		returnVal: ReturnType
+		hasReturnVal: bool
+	}
+	inherit(BaseTrace(), Trace)
+
+	local forAllSubtraces = BaseTrace().forAllSubtraces
 
 	terra Trace:__init(doRejectInit: bool) : {}
 		self.logprior = 0.0
@@ -188,18 +279,10 @@ local TraceTypeConstructor = terralib.memoize(function(program)
 		self:__init(false)
 	end
 
-	terra Trace:numChoices()
-		var n = 0
-		[forAllSubtraces(self, function(trace)
-			return quote n = n + trace:numChoices() end
-		end)]
-		return n
-	end
-
 	terra Trace:run()
 		-- Set the current trace to be this
-		var prevTrace = [currTrace()]
-		[currTrace()] = self
+		var prevTrace = [BaseTrace().currTrace()]
+		[BaseTrace().currTrace()] = self
 
 		-- Prepare
 		self.logprior = 0.0
@@ -223,70 +306,21 @@ local TraceTypeConstructor = terralib.memoize(function(program)
 		end)]
 
 		-- Restore previous current trace
-		[currTrace()] = prevTrace
-	end
-
-	terra Trace:pushAddress(id: Identifier)
-		self.address:insert(id)
-	end
-
-	terra Trace:popAddress()
-		self.address:remove()
-	end
-
-	terra Trace:addPriorProb(plp: double)
-		self.logprior = self.logprior + plp
-		self.logposterior = self.logprior + self.loglikelihood
-	end
-
-	terra Trace:addFactor(fac: double)
-		self.loglikelihood = self.loglikelihood + fac
-		self.logposterior = self.logprior + self.loglikelihood
-	end
-
-	terra Trace:enforceConstraint(pred: bool)
-		if not pred then
-			self.loglikelihood = -math.huge
-			self.logposterior = -math.huge
-		end
-	end
-
-	function Trace.lookup(ERPType)
-		local params = ERPType.ParamTypes:map(function(t) return symbol(t) end)
-		return terra(self: &Trace, [params])
-			var choicerec, found = self.[erptype2membername(ERPType)]:lookup(&self.address, [params])
-			if found then
-				choicerec:checkForChanges([params])
-			else
-				self.newlogprob = self.newlogprob + choicerec.logprob
-			end
-			self:addPriorProb(choicerec.logprob)
-			return choicerec
-		end
-	end
-
-	-- Propose a change to random choice i
-	-- Returns the forward and reverse probabilities of the proposal
-	terra Trace:proposeChangeToChoice(i: uint)
-		[forAllSubtraces(self, function(trace)
-			return quote
-				var n = trace:numChoices()
-				if i < n then
-					return trace:getChoice(i):proposal()
-				end
-				i = i - n
-			end
-		end)]
+		[BaseTrace().currTrace()] = prevTrace
 	end
 
 	return Trace
 
 end)
 
+-- This extra wrapper is necessary so that the function Trace() is safely
+--    re-entrant. If we don't do this, then we'll end up re-entering the
+--    actual type constructor when we try to compile a program, which will
+--    result in two structurally-equivalent Trace(program) types that the
+--    type system considers to be different.
 local Trace = function(program)
 	local T = TraceTypeConstructor(program)
-	compilingProgram = program
-	program:compile(function() compilingProgram = nil end)
+	program:compile(true)
 	return T
 end
 
@@ -297,7 +331,7 @@ end
 
 -- Trace for currently executing program
 local function currTrace()
-	return Trace(compilingProgram).currTrace()
+	return BaseTrace().currTrace()
 end
 
 -- Returns false if the program is just being run forward with no inference
@@ -311,13 +345,12 @@ local function lookup(ERPType)
 	--    behavior.
 	return macro(function(...)
 		local params = {...}
-		local TraceType = Trace(compilingProgram)
 		return quote
 			var val : ERPType.ValueType
 			-- If we are tracing program execution, then attempt to look up the
 			--    value in the trace
 			if [isRecordingTrace()] then
-				var choicerec = [TraceType.lookup(ERPType)]([currTrace()], [params])
+				var choicerec = [BaseTrace().lookup(ERPType)]([currTrace()], [params])
 				var tmpval = choicerec:getValue()
 				S.copy(val, tmpval)
 			-- Otherwise, just sample a value directly
