@@ -263,6 +263,12 @@ function S.Object(T)
     terra T:copymembers(other: &T)
         S.copymembers(@self, @other)
     end
+
+    if S.copyToHost then
+        T.methods.copyToHost = macro(function(self, dst)
+            return generateCopyToHost(self, dst)
+        end)
+    end
 end
 
 
