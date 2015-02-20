@@ -15,6 +15,7 @@ local function expectationTest(name, progmodule, trueExp)
 	local errtol = 0.07
 	local randomseed = 42
 	local verbose = false
+	local numthreads = 32
 
 	-- We assume that we can freely get the program's return type
 	local hostprog = progmodule()
@@ -29,7 +30,13 @@ local function expectationTest(name, progmodule, trueExp)
 		var est = 0.0
 		var err = 0.0
 		for i=0,runs do
-			[infer(platform).mh(progmodule)](samps, numsamps, 0, lag, randomseed, verbose)
+			escape
+				if platform.name == "x86" then
+					emit `[infer(platform).mh(progmodule)](samps, numsamps, 0, lag, randomseed, verbose)
+				elseif platform.name == "cuda" then
+					emit `[infer(platform).mh(progmodule)](samps, numthreads, numsamps, 0, lag, randomseed, verbose)
+				end
+			end
 			var mean = 0.0
 			for j=0,numsamps do
 				mean = mean + double(samps(j).value)
@@ -244,7 +251,8 @@ end
 
 
 
-doTests(require("platform.x86"))
+-- doTests(require("platform.x86"))
+doTests(require("platform.cuda"))
 
 
 

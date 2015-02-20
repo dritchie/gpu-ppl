@@ -12,7 +12,7 @@ end
 terralib.linklibrary("lib/stdrand/wrapper_terra.bc")
 local struct RandomState
 {
-	pad: uint8[ terralib.externfunction("rand_state_size", {}->{uint64})() ]
+	pad: uint8[ terralib.externfunction("std_rand_state_size", {}->{uint64})() ]
 }
 
 -- Global variables metatable
@@ -48,8 +48,8 @@ return
 	rand = 
 	{
 		State = RandomState,
-		init = terralib.externfunction("rand_init", {uint32, &RandomState} -> {}),
-		uniform = terralib.externfunction("rand_uniform", {&RandomState} -> {double})
+		init = terralib.externfunction("std_rand_init", {uint32, &RandomState} -> {}),
+		uniform = terralib.externfunction("std_rand_uniform", {&RandomState} -> {double})
 	},
 
 	maths = terralib.includec("math.h"),

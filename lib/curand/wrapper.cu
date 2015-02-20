@@ -3,7 +3,7 @@
 
 extern "C"
 {
-	__device__ void rand_init(unsigned long long seed,
+	__device__ void cu_rand_init(unsigned long long seed,
 							  unsigned long long subsequence,
 							  unsigned long long offset,
 							  curandStateXORWOW* state)
@@ -11,7 +11,7 @@ extern "C"
 		curand_init(seed, subsequence, offset, state);
 	}
 
-	__device__ double rand_uniform(curandStateXORWOW* state)
+	__device__ double cu_rand_uniform(curandStateXORWOW* state)
 	{
 		return curand_uniform_double(state);
 	}

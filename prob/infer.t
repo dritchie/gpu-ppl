@@ -103,7 +103,7 @@ local mh = terralib.memoize(function(progmodule)
 		local HostSample = require("prob.sample")(host)
 		local hostprogram = progmodule(host)
 		succ, typ = hostprogram:peektype()
-		local HostReturnType = type.returntype
+		local HostReturnType = typ.returntype
 
 		-- The actual CUDA kernel that does the work.
 		-- Each thread generates numsamps samples out output.
@@ -112,14 +112,14 @@ local mh = terralib.memoize(function(progmodule)
 			var idx = S.blockIdx.x() * S.blockDim.x() + S.threadIdx.x()
 			rand.init(seed, idx, 0, &[rand.globalState:get()])
 			var sampsbaseptr = outsamps + idx
-			var nAccepted = mhloop(sampsbaseptr, numsamps, burnin, lag, verbose)
+			var nAccepted = mhloop(sampsbaseptr, numsamps, burnin, lag, false)
 			outnaccept[idx] = nAccepted
 		end
 
 		-- Compile it, passing in constant memory refs for 'globals'
 		local CUDAmodule = terralib.cudacompile({
 			kernel = kernel,
-			gTraces = Trace.globalTrace:getimpl(),
+			gTraces = TraceType.globalTrace:getimpl(),
 			gRNGS = rand.globalState:getimpl()
 		})
 
