@@ -107,12 +107,13 @@ local mh = terralib.memoize(function(progmodule)
 
 		-- The actual CUDA kernel that does the work.
 		-- Each thread generates numsamps samples out output.
-		local terra kernel(outsamps: &Sample(ReturnType), numthreads: uint,
+		local terra kernel(outsamps: &Sample(ReturnType), outnaccept: &uint,
 						   numsamps: uint, burnin: uint, lag: uint, seed: uint)
-			var iters = burnin + (numsamps * lag)
-			-- TODO: compute seqid
-			-- rand.init(seed, ???seqid???, 0, &[rand.globalState:get()])
-			var nAccepted = mhloop(outsamps, numsamps, burnin, lag, verbose)
+			var idx = S.blockIdx.x() * S.blockDim.x() + S.threadIdx.x()
+			rand.init(seed, idx, 0, &[rand.globalState:get()])
+			var sampsbaseptr = outsamps + idx
+			var nAccepted = mhloop(sampsbaseptr, numsamps, burnin, lag, verbose)
+			outnaccept[idx] = nAccepted
 		end
 
 		-- Compile it, passing in constant memory refs for 'globals'
@@ -135,21 +136,31 @@ local mh = terralib.memoize(function(progmodule)
 			cuda.runtime.cudaMemcpy(CUDAmodule.gRNGS, grngs, sizeof(&rand.State),
 									cuda.runtime.cudaMemcpyHostToDevice)
 
-			-- Allocate space for samples
+			-- Allocate space for results (samples and naccept)
 			var samps : &Sample(ReturnType)
+			var naccepts : &uint
 			cuda.runtime.cudaMalloc([&&opaque](&samps), sizeof(Sample(ReturnType))*numsamps*numthreads)
+			cuda.runtime.cudaMalloc([&&opaque](&naccepts), sizeof(uint)*numthreads)
 
 			-- Launch kernel
+			var launchparams = terralib.CUDAParams { 1,1,1, numthreads,1,1, 0, nil }
 			var t0 = util.currenttimeinseconds()
-			kernel(samps, numthreads, numsamps, burnin, lag)
+			CUDAmodule.kernel(&launchparams, samps, naccepts, numsamps, burnin, lag, seed)
 			var t1 = util.currenttimeinseconds()
 
-			-- TODO: Make verbose output work by extracting acceptance rate from kernel somehow
 			if verbose then
+				-- Copy naccepts to host
+				var hostnaccepts = [&uint](HostS.malloc(sizeof(uint)*numthreads))
+				S.memcpyToHost(hostnaccepts, naccepts, sizeof(uint)*numthreads)
+				var iters = burnin + (numsamps * lag)
+				var nAccepted = 0
+				for i=0,numthreads do nAccepted = nAccepted + hostnaccepts[i] end
+				-- Report stuff
 				HostS.printf("\n")
-				-- HostS.printf("Acceptance Ratio: %u/%u (%g%%)\n", nAccepted, iters,
-				-- 	100.0*double(nAccepted)/iters)
+				HostS.printf("Acceptance Ratio: %u/%u (%g%%)\n", nAccepted, iters,
+					100.0*double(nAccepted)/iters)
 				HostS.printf("Time: %g\n", t1 - t0)
+				HostS.free(hostnaccepts)
 			end
 
 			-- Copy samples to host
@@ -165,6 +176,7 @@ local mh = terralib.memoize(function(progmodule)
 			cuda.runtime.cudaFree(gtraces)
 			cuda.runtime.cudaFree(grngs)
 			cuda.runtime.cudaFree(samps)
+			cuda.runtime.cudaFree(naccepts)
 		end
 
 	else
