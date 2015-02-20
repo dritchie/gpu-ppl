@@ -81,7 +81,7 @@ local mh = terralib.memoize(function(progmodule)
 					 numsamps: uint, burnin: uint, lag: uint, seed: uint, verbose: bool)
 			var iters = burnin + (numsamps * lag)
 			outsamps:resize(numsamps)
-			rand.init(seed, &[rand.globalState:get()])
+			rand.init(seed, &[rand.globalState():get()])
 			var t0 = util.currenttimeinseconds()
 			var nAccepted = mhloop(&outsamps(0), numsamps, burnin, lag, verbose)
 			var t1 = util.currenttimeinseconds()
@@ -110,7 +110,7 @@ local mh = terralib.memoize(function(progmodule)
 		local terra kernel(outsamps: &Sample(ReturnType), outnaccept: &uint,
 						   numsamps: uint, burnin: uint, lag: uint, seed: uint)
 			var idx = S.blockIdx.x() * S.blockDim.x() + S.threadIdx.x()
-			rand.init(seed, idx, 0, &[rand.globalState:get()])
+			rand.init(seed, idx, 0, &[rand.globalState():get()])
 			var sampsbaseptr = outsamps + idx
 			var nAccepted = mhloop(sampsbaseptr, numsamps, burnin, lag, false)
 			outnaccept[idx] = nAccepted
@@ -119,8 +119,8 @@ local mh = terralib.memoize(function(progmodule)
 		-- Compile it, passing in constant memory refs for 'globals'
 		local CUDAmodule = terralib.cudacompile({
 			kernel = kernel,
-			gTraces = TraceType.globalTrace:getimpl(),
-			gRNGS = rand.globalState:getimpl()
+			gTraces = trace.globalTrace():getimpl(),
+			gRNGS = rand.globalState():getimpl()
 		})
 
 		-- CPU-side Terra wrapper that launches kernel and packages up the results

@@ -7,10 +7,11 @@ return require("platform.module")(function(platform)
 	end
 
 	-- The 'global' (i.e. per-semantic-thread) RNG
-	R.globalState = platform.global(R.State)
+	local globalState = platform.global(R.State)
+	function R.globalState() return globalState end
 
 	R.random = terra()
-		return R.uniform(&[R.globalState:get()])
+		return R.uniform(&[globalState:get()])
 	end
 
 	return R

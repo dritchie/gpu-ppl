@@ -21,11 +21,11 @@ local function fn(funcOrMacro)
 			var [argstmp] = [args]
 			var hastrace = [trace.isRecordingTrace()]
 			if hastrace then
-				[trace.currTrace()]:pushAddress(myid)
+				[trace.globalTrace():get()]:pushAddress(myid)
 			end
 			var result = [data.def]([argstmp])
 			if hastrace then
-				[trace.currTrace()]:popAddress()
+				[trace.globalTrace():get()]:popAddress()
 			end
 		in
 			result
@@ -48,7 +48,7 @@ end
 local factor = macro(function(num)
 	return quote
 		if [trace.isRecordingTrace()] then
-			[trace.currTrace()]:addFactor(num)
+			[trace.globalTrace():get()]:addFactor(num)
 		end
 	end
 end)
@@ -58,7 +58,7 @@ end)
 local condition = macro(function(pred)
 	return quote
 		if [trace.isRecordingTrace()] then
-			[trace.currTrace()]:enforceConstraint(pred)
+			[trace.globalTrace():get()]:enforceConstraint(pred)
 		end
 	end
 end)

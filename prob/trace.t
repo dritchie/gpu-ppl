@@ -124,11 +124,7 @@ local BaseTrace = terralib.memoize(function()
 	-- Retrieve a reference to the trace for the currently-executing
 	--    computation (Platform specific)
 	local globalTrace = platform.global(&BaseTrace)
-	local function currTrace()
-		return globalTrace:get()
-	end
 	BaseTrace.globalTrace = globalTrace
-	BaseTrace.currTrace = currTrace
 
 	-- Map an ERPType to the corresponding subtrace member name
 	local erptype2index = {}
@@ -281,8 +277,8 @@ local Trace = terralib.memoize(function(program)
 
 	terra Trace:run()
 		-- Set the current trace to be this
-		var prevTrace = [BaseTrace().currTrace()]
-		[BaseTrace().currTrace()] = self
+		var prevTrace = [BaseTrace().globalTrace:get()]
+		[BaseTrace().globalTrace:get()] = self
 
 		-- Prepare
 		self.logprior = 0.0
@@ -306,7 +302,7 @@ local Trace = terralib.memoize(function(program)
 		end)]
 
 		-- Restore previous current trace
-		[BaseTrace().currTrace()] = prevTrace
+		[BaseTrace().globalTrace:get()] = prevTrace
 	end
 
 	return Trace
@@ -319,13 +315,13 @@ end)
 
 
 -- Trace for currently executing program
-local function currTrace()
-	return BaseTrace().currTrace()
+local function globalTrace()
+	return BaseTrace().globalTrace
 end
 
 -- Returns false if the program is just being run forward with no inference
 local function isRecordingTrace()
-	return `[currTrace()] ~= nil
+	return `[globalTrace():get()] ~= nil
 end
 
 -- Sample or retrieve the value of a random choice
@@ -339,7 +335,7 @@ local function lookup(ERPType)
 			-- If we are tracing program execution, then attempt to look up the
 			--    value in the trace
 			if [isRecordingTrace()] then
-				var choicerec = [BaseTrace().lookup(ERPType)]([currTrace()], [params])
+				var choicerec = [BaseTrace().lookup(ERPType)]([globalTrace():get()], [params])
 				var tmpval = choicerec:getValue()
 				S.copy(val, tmpval)
 			-- Otherwise, just sample a value directly
@@ -366,7 +362,7 @@ return
 {
 	Trace = Trace,
 	registerERPType = registerERPType,
-	currTrace = currTrace,
+	globalTrace = globalTrace,
 	isRecordingTrace = isRecordingTrace,
 	lookup = lookup
 }
