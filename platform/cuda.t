@@ -168,7 +168,7 @@ return
 		syncthreads = syncthreads,
 
 		-- Platforms that represent CPU-driven co-processors provide this function
-		mempcyToHost = terra(dst: &opaque, src: &opaque, size: uint64)
+		memcpyToHost = terra(dst: &opaque, src: &opaque, size: uint64)
 			return curt.cudaMemcpy(dst, src, size, curt.cudaMemcpyDeviceToHost)
 		end
 	},

@@ -127,25 +127,28 @@ local mh = terralib.memoize(function(progmodule)
 		return terra(outsamps: &HostVector(HostSample(HostReturnType)), numthreads: uint,
 					 numsamps: uint, burnin: uint, lag: uint, seed: uint, verbose: bool)
 			-- Allocate space for 'globals', point constant memory refs at this space
-			var gtraces : &&Trace
+			var gtraces : &&TraceType
 			var grngs : &rand.State
-			cuda.runtime.cudaMalloc([&&opaque](&gtraces), sizeof(&Trace)*numthreads)
-			cuda.runtime.cudaMalloc([&&opaque](&grngs), sizeof(rand.State)*numthreads)
-			cuda.runtime.cudaMemcpy(CUDAmodule.gTraces, gtraces, sizeof(&&Trace),
+			cuda.runtime.cudaMalloc([&&opaque](&gtraces), sizeof([&TraceType])*numthreads)
+			cuda.runtime.cudaMalloc([&&opaque](&grngs), sizeof([rand.State])*numthreads)
+			cuda.runtime.cudaMemcpy(CUDAmodule.gTraces, &gtraces, sizeof([&&TraceType]),
 									cuda.runtime.cudaMemcpyHostToDevice)
-			cuda.runtime.cudaMemcpy(CUDAmodule.gRNGS, grngs, sizeof(&rand.State),
+			cuda.runtime.cudaMemcpy(CUDAmodule.gRNGS, &grngs, sizeof([&rand.State]),
 									cuda.runtime.cudaMemcpyHostToDevice)
 
 			-- Allocate space for results (samples and naccept)
 			var samps : &Sample(ReturnType)
 			var naccepts : &uint
-			cuda.runtime.cudaMalloc([&&opaque](&samps), sizeof(Sample(ReturnType))*numsamps*numthreads)
+			cuda.runtime.cudaMalloc([&&opaque](&samps), sizeof([Sample(ReturnType)])*numsamps*numthreads)
 			cuda.runtime.cudaMalloc([&&opaque](&naccepts), sizeof(uint)*numthreads)
 
 			-- Launch kernel
+			if verbose then
+				HostS.printf("Launching CUDA MH kernel...\n")
+			end
 			var launchparams = terralib.CUDAParams { 1,1,1, numthreads,1,1, 0, nil }
 			var t0 = util.currenttimeinseconds()
-			CUDAmodule.kernel(&launchparams, samps, naccepts, numsamps, burnin, lag, seed)
+			-- CUDAmodule.kernel(&launchparams, samps, naccepts, numsamps, burnin, lag, seed)
 			var t1 = util.currenttimeinseconds()
 
 			if verbose then
@@ -164,8 +167,8 @@ local mh = terralib.memoize(function(progmodule)
 			end
 
 			-- Copy samples to host
-			var tmpsamps = [&Sample(ReturnType)](HostS.malloc(sizeof(Sample(ReturnType))*numsamps*numthreads))
-			S.memcpyToHost(tmpsamps, samps, sizeof(Sample(ReturnType))*numsamps*numthreads)
+			var tmpsamps = [&Sample(ReturnType)](HostS.malloc(sizeof([Sample(ReturnType)])*numsamps*numthreads))
+			S.memcpyToHost(tmpsamps, samps, sizeof([Sample(ReturnType)])*numsamps*numthreads)
 			outsamps:resize(numsamps*numthreads)
 			for i=0,numsamps*numthreads do
 				tmpsamps[i]:copyToHost(outsamps:get(i))

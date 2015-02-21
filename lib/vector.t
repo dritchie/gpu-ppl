@@ -131,11 +131,11 @@ return terralib.memoize(function(T,debug)
     if S.copyToHost then
         local hostplatform = require("platform.x86")
         local HostS = require("lib.std")(hostplatform)
-        local HostVector = require("lib.vector")(hostplatform)
+        local HostVector = require("lib.vector")(hostplatform)(T)
         terra Vector:__copyToHost(dst: &HostVector)
             dst:resize(self:size())
             var tmpmem = [&T](S.malloc(sizeof(T)*self:size()))
-            platform.memcpyToHost(tmpmem, self._data, sizeof(T)*self:size())
+            S.memcpyToHost(tmpmem, self._data, sizeof(T)*self:size())
             for i=0,self:size() do
                 S.copyToHost(tmpmem[i], dst(i))
             end

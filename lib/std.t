@@ -207,15 +207,6 @@ if S.memcpyToHost then
         end
     end)
 
-    local generateCopyToHost = macro(function(src, dst)
-        local T = src:gettype()
-        if T.methods.__copyToHost then
-            return `src:__copyToHost(&dst)
-        else
-            return `S.copyMembersToHost(src, dst)
-        end
-    end)
-
 end
 
 
@@ -266,7 +257,12 @@ function S.Object(T)
 
     if S.copyToHost then
         T.methods.copyToHost = macro(function(self, dst)
-            return generateCopyToHost(self, dst)
+            if dst:gettype():ispointer() then dst = `@dst end
+            if T.methods.__copyToHost then
+                return `self:__copyToHost(&dst)
+            else
+                return `S.copyMembersToHost(self, dst)
+            end
         end)
     end
 end

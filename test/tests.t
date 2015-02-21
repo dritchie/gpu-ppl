@@ -38,10 +38,10 @@ local function expectationTest(name, progmodule, trueExp)
 				end
 			end
 			var mean = 0.0
-			for j=0,numsamps do
+			for j=0,samps:size() do
 				mean = mean + double(samps(j).value)
 			end
-			mean = mean / numsamps
+			mean = mean / samps:size()
 			est = est + mean
 			err = err + maths.fabs(mean - trueExp)
 			samps:clear()
