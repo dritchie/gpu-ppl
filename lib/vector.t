@@ -128,6 +128,14 @@ return terralib.memoize(function(T,debug)
         end
     end
 
+    terra Vector:__clone(other: &Vector) : {}
+        self:clear()
+        self:resize(other._size)
+        for i=0,other._size do
+            S.copy(self(i), other(i))
+        end
+    end
+
     -- Device-to-host copy for coprocessor platforms
     if S.copyToHost then
         local hostplatform = require("platform.x86")

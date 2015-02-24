@@ -17,7 +17,6 @@ local function expectationTest(name, progmodule, trueExp)
 	local randomseed = 42
 	-- local verbose = false
 	local verbose = true
-	-- local numthreads = 32
 	local numthreads = 1
 
 	-- We assume that we can freely get the program's return type

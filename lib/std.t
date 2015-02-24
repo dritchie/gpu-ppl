@@ -59,7 +59,7 @@ local generatedtor = macro(function(self)
 end)
 
 
-
+-- Initializer
 S.init = macro(function(self)
     local T = self:gettype()
     local function hasinit(T)
@@ -105,7 +105,7 @@ local generateinit = macro(function(self, ...)
 end)
 
 
-
+-- Copy initializer
 S.copy = macro(function(self, other)
     local T = self:gettype()
     local function hascopy(T)
@@ -151,6 +151,52 @@ local generatecopy = macro(function(self, other)
     end
 end)
 
+
+-- Analogous to copy, but should only be called on already-initialized objects
+S.clone = macro(function(self, other)
+    local T = self:gettype()
+    local function hasclone(T)
+        if T:isstruct() then return T:getmethod("clone")
+        elseif T:isarray() then return hasclone(T.type)
+        else return false end
+    end
+    if T:isstruct() and hasclone(T) then
+        return `self:clone(&other)
+    elseif T:isarray() and hasclone(T) then
+        return quote
+            var pa = &self
+            for i=0,T.N do
+                S.clone((@pa)[i], other[i])
+            end
+        end
+    end
+    return quote
+        self = other
+    end
+end)
+
+S.clonemembers = macro(function(self, other)
+    local T = self:gettype()
+    local entries = T:getentries()
+    return quote
+        escape
+            for _,e in ipairs(entries) do
+                if e.field then --not a union
+                    emit `S.clone(self.[e.field], other.[e.field])
+                end
+            end
+        end
+    end
+end)
+
+local generateclone = macro(function(self, other)
+    local T = self:gettype()
+    if T.methods.__clone then
+        return `self:__clone(&other)
+    else
+        return `S.clonemembers(self, other)
+    end
+end)
 
 
 -- If platform is a CPU-driven coprocessor, then we also provide methods
@@ -253,6 +299,9 @@ function S.Object(T)
     end
     terra T:copymembers(other: &T)
         S.copymembers(@self, @other)
+    end
+    terra T:clone(other: &T)
+        generateclone(@self, @other)
     end
 
     if S.copyToHost then

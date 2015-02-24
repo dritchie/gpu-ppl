@@ -30,9 +30,9 @@ local mh = terralib.memoize(function(progmodule)
 	-- Lightweight MH transition kernel
 	-- Modifies currTrace in place
 	-- Returns true if accepted proposal, false if rejected
-	local terra mhKernel(currTrace: &TraceType)
+	local terra mhKernel(currTrace: &TraceType, nextTrace: &TraceType)
 		-- var nextTrace = currTrace
-		var nextTrace = TraceType.salloc():copy(currTrace)
+		nextTrace:clone(currTrace)
 		var nold = nextTrace:numChoices()
 		var whichi = uint(nold * rand.random())
 		var fwdPropLP, rvsPropLP = nextTrace:proposeChangeToChoice(whichi)
@@ -56,6 +56,7 @@ local mh = terralib.memoize(function(progmodule)
 				 numsamps: uint, burnin: uint, lag: uint, verbose: bool)
 		var iters = burnin + (numsamps * lag)
 		var currTrace = TraceType.salloc():init(true)
+		var nextTrace = TraceType.salloc():init(false)
 		var nAccepted = 0
 		for i=0,iters do
 			-- Spit out progress output if the platform supports arbitrary
@@ -68,7 +69,7 @@ local mh = terralib.memoize(function(progmodule)
 					end
 				end end
 			end
-			if mhKernel(currTrace) then nAccepted = nAccepted + 1 end
+			if mhKernel(currTrace, nextTrace) then nAccepted = nAccepted + 1 end
 			if i >= burnin and i % lag == 0 then
 				outsamps[i / lag]:init(&currTrace.returnVal, currTrace.logposterior)
 			end
