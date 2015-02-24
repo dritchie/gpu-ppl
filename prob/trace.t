@@ -360,6 +360,7 @@ end
 
 return
 {
+	BaseTrace = BaseTrace,
 	Trace = Trace,
 	registerERPType = registerERPType,
 	globalTrace = globalTrace,

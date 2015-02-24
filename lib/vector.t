@@ -39,6 +39,7 @@ return terralib.memoize(function(T,debug)
                         var newdata = [&T](S.malloc(sizeof(T)*self._capacity))
                         if self._data ~= nil then
                             S.memcpy(newdata, self._data, sizeof(T)*self._size)
+                            -- for i=0,self._size do newdata[i] = self._data[i] end
                             S.free(self._data)
                         end
                         self._data = newdata
@@ -130,7 +131,6 @@ return terralib.memoize(function(T,debug)
     -- Device-to-host copy for coprocessor platforms
     if S.copyToHost then
         local hostplatform = require("platform.x86")
-        local HostS = require("lib.std")(hostplatform)
         local HostVector = require("lib.vector")(hostplatform)(T)
         terra Vector:__copyToHost(dst: &HostVector)
             dst:resize(self:size())

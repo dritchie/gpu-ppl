@@ -17,6 +17,7 @@ local mh = terralib.memoize(function(progmodule)
 
 	local program = progmodule(platform)
 
+	local BaseTrace = trace.BaseTrace()
 	local TraceType = trace.Trace(program)
 
 	-- We assume that we can freely get the program's return type
@@ -30,6 +31,7 @@ local mh = terralib.memoize(function(progmodule)
 	-- Modifies currTrace in place
 	-- Returns true if accepted proposal, false if rejected
 	local terra mhKernel(currTrace: &TraceType)
+		-- var nextTrace = currTrace
 		var nextTrace = TraceType.salloc():copy(currTrace)
 		var nold = nextTrace:numChoices()
 		var whichi = uint(nold * rand.random())
@@ -111,27 +113,44 @@ local mh = terralib.memoize(function(progmodule)
 						   numsamps: uint, burnin: uint, lag: uint, seed: uint)
 			var idx = S.blockIdx.x() * S.blockDim.x() + S.threadIdx.x()
 			rand.init(seed, idx, 0, &[rand.globalState():get()])
-			var sampsbaseptr = outsamps + idx
+			var sampsbaseptr = outsamps + (idx * numsamps)
 			var nAccepted = mhloop(sampsbaseptr, numsamps, burnin, lag, false)
 			outnaccept[idx] = nAccepted
 		end
-
+   
 		-- Compile it, passing in constant memory refs for 'globals'
+		io.write("[[ Compiling CUDA MH kernel...")
+		io.flush()
+		local t0 = terralib.currenttimeinseconds()
 		local CUDAmodule = terralib.cudacompile({
 			kernel = kernel,
 			gTraces = trace.globalTrace():getimpl(),
 			gRNGS = rand.globalState():getimpl()
 		})
+		local t1 = terralib.currenttimeinseconds()
+		print(" Done (Compile time: " .. tostring(t1-t0) .. ") ]]")
+
+		-- Error-checking macro for CUDA invocations
+		local CUDA_ERRCHECK = macro(function(stmt)
+			return quote
+				var retcode = stmt
+				if retcode ~= cuda.runtime.cudaSuccess then
+					HostS.printf("CUDA call failed with error: %s\n",
+						cuda.runtime.cudaGetErrorString(retcode))
+					HostS.exit(1)
+				end
+			end
+		end)
 
 		-- CPU-side Terra wrapper that launches kernel and packages up the results
 		return terra(outsamps: &HostVector(HostSample(HostReturnType)), numthreads: uint,
 					 numsamps: uint, burnin: uint, lag: uint, seed: uint, verbose: bool)
 			-- Allocate space for 'globals', point constant memory refs at this space
-			var gtraces : &&TraceType
+			var gtraces : &&BaseTrace
 			var grngs : &rand.State
-			cuda.runtime.cudaMalloc([&&opaque](&gtraces), sizeof([&TraceType])*numthreads)
+			cuda.runtime.cudaMalloc([&&opaque](&gtraces), sizeof([&BaseTrace])*numthreads)
 			cuda.runtime.cudaMalloc([&&opaque](&grngs), sizeof([rand.State])*numthreads)
-			cuda.runtime.cudaMemcpy(CUDAmodule.gTraces, &gtraces, sizeof([&&TraceType]),
+			cuda.runtime.cudaMemcpy(CUDAmodule.gTraces, &gtraces, sizeof([&&BaseTrace]),
 									cuda.runtime.cudaMemcpyHostToDevice)
 			cuda.runtime.cudaMemcpy(CUDAmodule.gRNGS, &grngs, sizeof([&rand.State]),
 									cuda.runtime.cudaMemcpyHostToDevice)
@@ -144,24 +163,26 @@ local mh = terralib.memoize(function(progmodule)
 
 			-- Launch kernel
 			if verbose then
-				HostS.printf("Launching CUDA MH kernel...\n")
+				HostS.printf("[[ Launching CUDA MH kernel ]]\n")
 			end
 			var launchparams = terralib.CUDAParams { 1,1,1, numthreads,1,1, 0, nil }
 			var t0 = util.currenttimeinseconds()
-			-- CUDAmodule.kernel(&launchparams, samps, naccepts, numsamps, burnin, lag, seed)
+			CUDA_ERRCHECK(CUDAmodule.kernel(&launchparams, samps, naccepts, numsamps, burnin, lag, seed))
+			CUDA_ERRCHECK(cuda.runtime.cudaDeviceSynchronize())
 			var t1 = util.currenttimeinseconds()
 
 			if verbose then
 				-- Copy naccepts to host
 				var hostnaccepts = [&uint](HostS.malloc(sizeof(uint)*numthreads))
 				S.memcpyToHost(hostnaccepts, naccepts, sizeof(uint)*numthreads)
-				var iters = burnin + (numsamps * lag)
+				var nTotal = (burnin + (numsamps * lag)) * numthreads
 				var nAccepted = 0
-				for i=0,numthreads do nAccepted = nAccepted + hostnaccepts[i] end
+				for i=0,numthreads do
+					nAccepted = nAccepted + hostnaccepts[i]
+				end
 				-- Report stuff
-				HostS.printf("\n")
-				HostS.printf("Acceptance Ratio: %u/%u (%g%%)\n", nAccepted, iters,
-					100.0*double(nAccepted)/iters)
+				HostS.printf("Acceptance Ratio: %u/%u (%g%%)\n", nAccepted, nTotal,
+					100.0*double(nAccepted)/nTotal)
 				HostS.printf("Time: %g\n", t1 - t0)
 				HostS.free(hostnaccepts)
 			end

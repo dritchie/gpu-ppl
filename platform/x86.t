@@ -42,6 +42,7 @@ return
 		    end
 		end),
 		printf = C.printf,
+		exit = C.exit,
 		flushstdout = C.flushstdout
 	},
 
@@ -56,6 +57,7 @@ return
 
 	global = function(Type)
 		local obj = { global = global(Type) }
+		if Type:ispointer() then obj.global:set(nil) end
 		setmetatable(obj, globalmt)
 		return obj
 	end,

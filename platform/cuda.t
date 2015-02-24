@@ -20,6 +20,10 @@ local function createbuffer(args)
         [&int8](&buf)
     end
 end
+local printf = macro(function(fmt,...)
+    local buf = createbuffer({...})
+    return `vprintf(fmt,buf) 
+end)
 
 
 ------------------------------------------------------------------------------
@@ -155,10 +159,7 @@ return
 		free = terralib.externfunction("free", {&opaque} -> {}),
 		memcpy = terralib.externfunction("memcpy", {&opaque, &opaque, uint64} -> {&opaque}),
 		assert = macro(function(check) error("assert not (yet?) implemented for CUDA platform") end),
-		printf = macro(function(fmt,...)
-		    local buf = createbuffer({...})
-		    return `vprintf(fmt,buf) 
-		end),
+		printf = printf,
 
 		threadIdx = threadIdx,
 		blockDim = blockDim,

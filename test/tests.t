@@ -11,11 +11,14 @@ local function expectationTest(name, progmodule, trueExp)
 
 	local numsamps = 200
 	local lag = 20
-	local runs = 5
+	-- local runs = 5
+	local runs = 1
 	local errtol = 0.07
 	local randomseed = 42
-	local verbose = false
-	local numthreads = 32
+	-- local verbose = false
+	local verbose = true
+	-- local numthreads = 32
+	local numthreads = 1
 
 	-- We assume that we can freely get the program's return type
 	local hostprog = progmodule()
