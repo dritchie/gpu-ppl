@@ -30,8 +30,9 @@ local mh = terralib.memoize(function(progmodule)
 	-- Lightweight MH transition kernel
 	-- Modifies currTrace in place
 	-- Returns true if accepted proposal, false if rejected
-	local terra mhKernel(currTrace: &TraceType, nextTrace: &TraceType)
-		-- var nextTrace = currTrace
+	local terra mhKernel(_currTrace: &&TraceType, _nextTrace: &&TraceType)
+		var currTrace = @_currTrace
+		var nextTrace = @_nextTrace
 		nextTrace:clone(currTrace)
 		var nold = nextTrace:numChoices()
 		var whichi = uint(nold * rand.random())
@@ -43,7 +44,7 @@ local mh = terralib.memoize(function(progmodule)
 		var acceptThresh = (nextTrace.logposterior - currTrace.logposterior) +
 							rvsPropLP - fwdPropLP
 		if maths.log(rand.random()) < acceptThresh then
-			util.swap(@currTrace, @nextTrace)
+			util.swap(@_currTrace, @_nextTrace)
 			return true
 		else
 			return false
@@ -69,7 +70,7 @@ local mh = terralib.memoize(function(progmodule)
 					end
 				end end
 			end
-			if mhKernel(currTrace, nextTrace) then nAccepted = nAccepted + 1 end
+			if mhKernel(&currTrace, &nextTrace) then nAccepted = nAccepted + 1 end
 			if i >= burnin and i % lag == 0 then
 				outsamps[i / lag]:init(&currTrace.returnVal, currTrace.logposterior)
 			end
@@ -146,6 +147,12 @@ local mh = terralib.memoize(function(progmodule)
 		-- CPU-side Terra wrapper that launches kernel and packages up the results
 		return terra(outsamps: &HostVector(HostSample(HostReturnType)), numthreads: uint,
 					 numsamps: uint, burnin: uint, lag: uint, seed: uint, verbose: bool)
+
+			-- Make the stack bigger so we don't overflow it.
+			-- 8k seems to be enough (thus far). Note that the XORWOW rng requires more space.
+			var stacksize = 8 * 1024
+			cuda.runtime.cudaDeviceSetLimit(cuda.runtime.cudaLimitStackSize, stacksize)
+
 			-- Allocate space for 'globals', point constant memory refs at this space
 			var gtraces : &&BaseTrace
 			var grngs : &rand.State

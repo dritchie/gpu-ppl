@@ -77,7 +77,7 @@ if os.execute("cd lib/curand; make") ~= 0 then
 	error("Failed to compile curand wrapper.")
 end	
 terralib.linklibrary("lib/curand/wrapper_terra.bc")
-local struct RandomState  -- just a copy of XORWOW state
+local struct XORWOWRandomState 
 {
 	d: uint32
     v: uint32[5]
@@ -86,6 +86,17 @@ local struct RandomState  -- just a copy of XORWOW state
     bmextra: float
     bmextra_double: double
 }
+local struct MRG32k3aRandomState 
+{
+	s1: double[3]
+	s2: double[3]
+    bmflag: int
+    bmflag_double: int
+    bmextra: float
+    bmextra_double: double
+}
+-- local RandomState = XORWOWRandomState
+local RandomState = MRG32k3aRandomState
 
 
 ------------------------------------------------------------------------------
