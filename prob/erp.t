@@ -72,9 +72,7 @@ local function makeERP(sample, logprob, propose)
 	ERPType.methods.logprob = logprob
 	ERPType.methods.propose = propose
 
-	ERPType.methods.getValue = macro(function(self)
-		return `self.value
-	end)
+	terra ERPType:getValue() return self.value end
 
 	local params = ParamTypes:map(function(t) return symbol(t) end)
 	terra ERPType:__init([params])

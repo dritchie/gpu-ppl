@@ -38,8 +38,7 @@ return terralib.memoize(function(T,debug)
                     emit quote
                         var newdata = [&T](S.malloc(sizeof(T)*self._capacity))
                         if self._data ~= nil then
-                            S.memcpy(newdata, self._data, sizeof(T)*self._size)
-                            -- for i=0,self._size do newdata[i] = self._data[i] end
+                            S.memcpy(newdata, self._data, sizeof(T)*oc)
                             S.free(self._data)
                         end
                         self._data = newdata

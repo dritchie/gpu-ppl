@@ -150,7 +150,7 @@ local mh = terralib.memoize(function(progmodule)
 
 			-- Make the stack bigger so we don't overflow it.
 			-- 8k seems to be enough (thus far). Note that the XORWOW rng requires more space.
-			var stacksize = 8 * 1024
+			var stacksize = 4 * 1024
 			cuda.runtime.cudaDeviceSetLimit(cuda.runtime.cudaLimitStackSize, stacksize)
 
 			-- Allocate space for 'globals', point constant memory refs at this space
