@@ -11,7 +11,7 @@ wrapper_terra.bc: wrapper.ll
 	$(AS) < $< > $@
 
 wrapper.ll: wrapper.cpp
-	$(CLANG) -S -emit-llvm $< -o $@
+	$(CLANG) -std=c++11 -S -emit-llvm $< -o $@
 
 clean:
 	rm -f *.ll *.bc

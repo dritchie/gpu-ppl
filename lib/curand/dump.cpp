@@ -2,10 +2,11 @@
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <dlfcn.h>
 
 void * real = NULL;
-
+;
 typedef uint64_t (*FnTyp)(uint64_t,uint64_t,uint64_t,uint64_t);
 
 static int count = 0;
