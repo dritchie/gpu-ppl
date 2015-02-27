@@ -17,7 +17,9 @@ local function expectationTest(name, progmodule, trueExp)
 	local randomseed = 42
 	-- local verbose = false
 	local verbose = true
-	local numthreads = 1
+
+	local numblocks = 4
+	local numthreads = 256
 
 	-- We assume that we can freely get the program's return type
 	local hostprog = progmodule()
@@ -36,7 +38,7 @@ local function expectationTest(name, progmodule, trueExp)
 				if platform.name == "x86" then
 					emit `[infer(platform).mh(progmodule)](samps, numsamps, 0, lag, randomseed, verbose)
 				elseif platform.name == "cuda" then
-					emit `[infer(platform).mh(progmodule)](samps, numthreads, numsamps, 0, lag, randomseed, verbose)
+					emit `[infer(platform).mh(progmodule)](samps, numblocks, numthreads, numsamps, 0, lag, randomseed, verbose)
 				end
 			end
 			var mean = 0.0

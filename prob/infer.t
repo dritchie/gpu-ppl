@@ -145,7 +145,7 @@ local mh = terralib.memoize(function(progmodule)
 		end)
 
 		-- CPU-side Terra wrapper that launches kernel and packages up the results
-		return terra(outsamps: &HostVector(HostSample(HostReturnType)), numthreads: uint,
+		return terra(outsamps: &HostVector(HostSample(HostReturnType)), numblocks: uint, numthreads: uint,
 					 numsamps: uint, burnin: uint, lag: uint, seed: uint, verbose: bool)
 
 			-- Make the stack bigger so we don't overflow it.
@@ -156,8 +156,8 @@ local mh = terralib.memoize(function(progmodule)
 			-- Allocate space for 'globals', point constant memory refs at this space
 			var gtraces : &&BaseTrace
 			var grngs : &rand.State
-			cuda.runtime.cudaMalloc([&&opaque](&gtraces), sizeof([&BaseTrace])*numthreads)
-			cuda.runtime.cudaMalloc([&&opaque](&grngs), sizeof([rand.State])*numthreads)
+			cuda.runtime.cudaMalloc([&&opaque](&gtraces), sizeof([&BaseTrace])*numblocks*numthreads)
+			cuda.runtime.cudaMalloc([&&opaque](&grngs), sizeof([rand.State])*numblocks*numthreads)
 			cuda.runtime.cudaMemcpy(CUDAmodule.gTraces, &gtraces, sizeof([&&BaseTrace]),
 									cuda.runtime.cudaMemcpyHostToDevice)
 			cuda.runtime.cudaMemcpy(CUDAmodule.gRNGS, &grngs, sizeof([&rand.State]),
@@ -166,14 +166,14 @@ local mh = terralib.memoize(function(progmodule)
 			-- Allocate space for results (samples and naccept)
 			var samps : &Sample(ReturnType)
 			var naccepts : &uint
-			cuda.runtime.cudaMalloc([&&opaque](&samps), sizeof([Sample(ReturnType)])*numsamps*numthreads)
-			cuda.runtime.cudaMalloc([&&opaque](&naccepts), sizeof(uint)*numthreads)
+			cuda.runtime.cudaMalloc([&&opaque](&samps), sizeof([Sample(ReturnType)])*numsamps*numblocks*numthreads)
+			cuda.runtime.cudaMalloc([&&opaque](&naccepts), sizeof(uint)*numblocks*numthreads)
 
 			-- Launch kernel
 			if verbose then
 				HostS.printf("[[ Launching CUDA MH kernel ]]\n")
 			end
-			var launchparams = terralib.CUDAParams { 1,1,1, numthreads,1,1, 0, nil }
+			var launchparams = terralib.CUDAParams { numblocks,1,1, numthreads,1,1, 0, nil }
 			var t0 = util.currenttimeinseconds()
 			CUDA_ERRCHECK(CUDAmodule.kernel(&launchparams, samps, naccepts, numsamps, burnin, lag, seed))
 			CUDA_ERRCHECK(cuda.runtime.cudaDeviceSynchronize())
@@ -181,11 +181,11 @@ local mh = terralib.memoize(function(progmodule)
 
 			if verbose then
 				-- Copy naccepts to host
-				var hostnaccepts = [&uint](HostS.malloc(sizeof(uint)*numthreads))
-				S.memcpyToHost(hostnaccepts, naccepts, sizeof(uint)*numthreads)
-				var nTotal = (burnin + (numsamps * lag)) * numthreads
+				var hostnaccepts = [&uint](HostS.malloc(sizeof(uint)*numblocks*numthreads))
+				S.memcpyToHost(hostnaccepts, naccepts, sizeof(uint)*numblocks*numthreads)
+				var nTotal = (burnin + (numsamps * lag)) * numblocks * numthreads
 				var nAccepted = 0
-				for i=0,numthreads do
+				for i=0,numblocks*numthreads do
 					nAccepted = nAccepted + hostnaccepts[i]
 				end
 				-- Report stuff
@@ -196,10 +196,10 @@ local mh = terralib.memoize(function(progmodule)
 			end
 
 			-- Copy samples to host
-			var tmpsamps = [&Sample(ReturnType)](HostS.malloc(sizeof([Sample(ReturnType)])*numsamps*numthreads))
-			S.memcpyToHost(tmpsamps, samps, sizeof([Sample(ReturnType)])*numsamps*numthreads)
-			outsamps:resize(numsamps*numthreads)
-			for i=0,numsamps*numthreads do
+			var tmpsamps = [&Sample(ReturnType)](HostS.malloc(sizeof([Sample(ReturnType)])*numsamps*numblocks*numthreads))
+			S.memcpyToHost(tmpsamps, samps, sizeof([Sample(ReturnType)])*numsamps*numblocks*numthreads)
+			outsamps:resize(numsamps*numblocks*numthreads)
+			for i=0,numsamps*numblocks*numthreads do
 				tmpsamps[i]:copyToHost(outsamps:get(i))
 			end
 			HostS.free(tmpsamps)
