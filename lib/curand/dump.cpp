@@ -11,9 +11,15 @@ typedef uint64_t (*FnTyp)(uint64_t,uint64_t,uint64_t,uint64_t);
 
 static int count = 0;
 
+#ifndef __linux__
+#define LIBNVVM "/usr/local/cuda/nvvm/lib/libnvvm.dylib"
+#else
+#define LIBNVVM "/usr/local/cuda/nvvm/lib64/libnvvm.so"
+#endif
+
 extern "C" uint64_t nvvmAddModuleToProgram(uint64_t a,uint64_t b,uint64_t c,uint64_t d) {
     if (!real) {
-        void * handle = dlopen("/usr/local/cuda/nvvm/lib/libnvvm.dylib",RTLD_NOW);
+        void * handle = dlopen(LIBNVVM, RTLD_NOW);
         real = dlsym(handle, "nvvmAddModuleToProgram");
     }
     char buf[256];

@@ -1,6 +1,7 @@
 curand_wrapper_terra.bc
 Makefile.inc
 *.dylib
+*.so
 *.ll
 *.ptx
 *.bc
