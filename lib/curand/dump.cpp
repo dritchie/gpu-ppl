@@ -6,7 +6,7 @@
 #include <dlfcn.h>
 
 void * real = NULL;
-;
+
 typedef uint64_t (*FnTyp)(uint64_t,uint64_t,uint64_t,uint64_t);
 
 static int count = 0;

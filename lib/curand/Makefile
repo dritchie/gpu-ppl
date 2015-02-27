@@ -6,6 +6,8 @@
 #    * CUDA_ARCH: Target architecture for building cuda code (defaults to compute_30)
 -include ../Makefile.inc
 
+UNAME = $(shell uname)
+
 CLANG = $(LLVM_TERRA)/bin/clang++
 DIS = $(LLVM_31)/bin/llvm-dis
 AS = $(LLVM_TERRA)/bin/llvm-as
