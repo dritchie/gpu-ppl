@@ -83,6 +83,9 @@ local mh = terralib.memoize(function(progmodule)
 
 		return terra(outsamps: &Vector(Sample(ReturnType)),
 					 numsamps: uint, burnin: uint, lag: uint, seed: uint, verbose: bool)
+			if verbose then
+				S.printf("\n")
+			end
 			var iters = burnin + (numsamps * lag)
 			outsamps:resize(numsamps)
 			rand.init(seed, &[rand.globalState():get()])
@@ -127,7 +130,9 @@ local mh = terralib.memoize(function(progmodule)
 		local CUDAmodule = terralib.cudacompile({
 			kernel = kernel,
 			gTraces = trace.globalTrace():getimpl(),
-			gRNGS = rand.globalState():getimpl()
+			gRNGS = rand.globalState():getimpl(),
+			-- -- TEST
+			-- gvec = cuda.gvec:getimpl()
 		})
 		local t1 = terralib.currenttimeinseconds()
 		print(" Done (Compile time: " .. tostring(t1-t0) .. ") ]]")
@@ -152,6 +157,11 @@ local mh = terralib.memoize(function(progmodule)
 			-- 8k seems to be enough (thus far). Note that the XORWOW rng requires more space.
 			var stacksize = 4 * 1024
 			cuda.runtime.cudaDeviceSetLimit(cuda.runtime.cudaLimitStackSize, stacksize)
+
+			-- -- TEST: Allocate space for gvecs
+			-- var gvecs : &Vector(double)
+			-- cuda.runtime.cudaMalloc([&&opaque](&gvecs), sizeof([Vector(double)])*numblocks*numthreads)
+			-- cuda.runtime.cudaMemcpy(CUDAmodule.gvec, &gvecs, sizeof([&Vector(double)]), cuda.runtime.cudaMemcpyHostToDevice)
 
 			-- Allocate space for 'globals', point constant memory refs at this space
 			var gtraces : &&BaseTrace
@@ -209,6 +219,9 @@ local mh = terralib.memoize(function(progmodule)
 			cuda.runtime.cudaFree(grngs)
 			cuda.runtime.cudaFree(samps)
 			cuda.runtime.cudaFree(naccepts)
+
+			-- -- TEST: free gvecs
+			-- cuda.runtime.cudaFree(gvecs)
 		end
 
 	else

@@ -18,7 +18,7 @@ local function expectationTest(name, progmodule, trueExp)
 	-- local verbose = false
 	local verbose = true
 
-	local numblocks = 4
+	local numblocks = 1
 	local numthreads = 256
 
 	-- We assume that we can freely get the program's return type
@@ -248,6 +248,43 @@ pmodule(function(platform)
 end),
 0.7599
 )
+
+-- =======================
+
+-- expectationTest(
+-- "many choices expectation",
+-- pmodule(function(platform)
+-- 	return terra() : bool
+-- 		var a = p.flip(0.5)
+-- 		var b = p.flip(0.5)
+-- 		var c = p.flip(0.5)
+-- 		var d = p.flip(0.5)
+-- 		var e = p.flip(0.5)
+-- 		return (a or b or c or d or e)
+-- 	end
+-- end),
+-- 1.0
+-- )
+
+-- expectationTest(
+-- "categorical expectation (global vector)",
+-- pmodule(function(platform)
+-- 	local Vector = require("lib.vector")(platform)
+-- 	-- TEST: global vector
+-- 	platform.gvec = platform.global(Vector(double))
+-- 	local params = platform.gvec
+-- 	return terra() : double
+-- 		var items = array(0.2, 0.3, 0.4)
+-- 		if [params:get()]:size() ~= 3 then
+-- 			[params:get()]:init(3)
+-- 		end
+-- 		[params:get()]:clear()
+-- 		[params:get()]:insert(0.2); [params:get()]:insert(0.6); [params:get()]:insert(0.2)
+-- 		return items[p.categorical(&[params:get()])]
+-- 	end
+-- end),
+-- 0.2*.2 + 0.6*.3 + 0.2*.4
+-- )
 
 ------------------------------------------------------------------------------
 
